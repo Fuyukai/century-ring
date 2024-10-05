@@ -68,15 +68,11 @@ impl TheIoRing {
 
     pub fn submit(&mut self, py: Python<'_>) -> PyResult<usize> {
         let res = py.allow_threads(|| self.the_io_uring.submit())?;
-
-        self.owned_paths.clear();
         return Ok(res);
     }
 
     pub fn wait(&mut self, py: Python<'_>, want: usize) -> PyResult<usize> {
         let result = py.allow_threads(|| Ok(self.the_io_uring.submit_and_wait(want)?));
-
-        self.owned_paths.clear();
         return result;
     }
 
@@ -101,6 +97,7 @@ impl TheIoRing {
             .map(|e| {
                 // move out our owned buffer into the struct to let python deal with it
                 let buffer = self.owned_buffers.remove(&e.user_data());
+                self.owned_paths.remove(&e.user_data());
 
                 return CompletionEvent {
                     user_data: e.user_data(),
