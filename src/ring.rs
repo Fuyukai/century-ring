@@ -96,7 +96,14 @@ impl TheIoRing {
             .iter()
             .map(|e| {
                 // move out our owned buffer into the struct to let python deal with it
-                let buffer = self.owned_buffers.remove(&e.user_data());
+                let buffer = self.owned_buffers.remove(&e.user_data()).map(|mut buf| {
+                    if buf.len() == e.result() as usize {
+                        return buf;
+                    }
+
+                    buf.shrink_to(e.result() as usize);
+                    return buf;
+                });
                 self.owned_paths.remove(&e.user_data());
 
                 return CompletionEvent {
