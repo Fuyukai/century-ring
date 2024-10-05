@@ -1,0 +1,73 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "century_ring"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+readme = "README.rst"
+license = "LGPL-3.0-or-later"
+dynamic = ["version"]
+dependencies = ["attrs>=24.1.0"]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "pysrc"
+module-name = "century_ring._century_ring"
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["pysrc"]
+typeCheckingMode = "strict"
+
+reportImplicitOverride = "warning"
+reportUnusedVariable = false
+reportIncompatibleVariableOverride = false
+reportPrivateUsage = false
+
+[tool.ruff]
+target-version = "py312"
+respect-gitignore = true
+# fix = true
+src = ["pysrc/"]
+line-length = 100
+output-format = "full"
+
+[tool.ruff.lint]
+select = [
+    "RUF",
+    "F",
+    "E",
+    "W",
+    "I",
+    "UP",
+    "B",
+    "Q",
+    "YTT",
+    "PYI",
+    "SIM",
+    "RET",
+    "PERF",
+    "PIE",
+    "SIM",
+    "C4",
+
+    # specific docstring rules
+    "D201", "D204", "D211", "D419",   # less ugly docstrings
+]
+ignore = [
+    "W291",
+    "W293",
+    "PYI021",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_*" = ["D"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

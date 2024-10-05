@@ -1,0 +1,14 @@
+[package]
+name = "century-ring"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "century_ring"
+crate-type = ["cdylib"]
+
+[dependencies]
+bytemuck = "=1.18.0"
+io-uring = "=0.7.0"
+procfs = "=0.16.0"
+pyo3 = "=0.22.0"
