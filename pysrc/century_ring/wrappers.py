@@ -12,6 +12,7 @@ from century_ring._century_ring import (
     _RUSTFFI_create_io_ring,
     _RUSTFFI_ioring_prep_openat,
     _RUSTFFI_ioring_prep_read,
+    _RUSTFFI_ioring_prep_write,
 )
 from century_ring.files import FileOpenFlag, FileOpenMode, enum_flags_to_int_flags
 
@@ -109,7 +110,7 @@ class IoUring:
             umask; for example, if a user's umask is ``0o022`` and ``mode`` is the value ``0o666``
             (the default value), then the final file will be created with ``0o644`` permissions.
 
-        :return: The user-data value that was stored in the CQE.
+        :return: The user-data value that was stored in the SQE.
         """
 
         if not (ring := self._the_ring()):
@@ -126,22 +127,87 @@ class IoUring:
         )
         return user_data
 
-    def prep_read(self, fd: int, byte_count: int) -> int:
+    def prep_read(self, fd: int, byte_count: int, offset: int = -1) -> int:
         """
-        Prepares a read(2) call. See the relevant man page for more details.
+        Prepares a pread(2) call. See the relevant man page for more details.
 
         The completion queue event for this submission will have the byte count as the result
         field, and a buffer containing the data read from the file.
 
         :param fd: The file descriptor to read the data from.
         :param byte_count: The *maximum* number of bytes to read. The actual amount may be lower.
+        :param offset:
+
+            The offset within the file to read from. If this is a positive integer, this is an
+            absolute offset within the file to read from.
+
+            If this is the constant ``-1``, then this will read from the current file's seek
+            position.
+
+        :return: The user-data value that was stored in the SQE.
         """
 
         if not (ring := self._the_ring()):
             raise RuntimeError("The ring is closed")
 
+        if offset < 0 and offset < -1:
+            raise ValueError("Can't pass negative offset", offset, "for this operation")
+
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_read(ring, fd, byte_count, user_data)
+        _RUSTFFI_ioring_prep_read(ring, fd, byte_count, offset, user_data)
+        return user_data
+
+    def prep_write(
+        self,
+        fd: int,
+        buffer: bytes | bytearray,
+        file_offset: int = -1,
+        count: int | None = None,
+        buffer_offset: int | None = None,
+    ) -> int:
+        """
+        Prepares a pwrite(2) call. See the relevant man page for more details.
+
+        The completion queue event for this submission will have the actual byte count *written*
+        in the result field, as well as a copy of the buffer that was written for memory safetty
+        purposes. The byte count may be less than the count requested.
+
+        :param fd: The file descriptor to write the data to.
+        :param buffer:
+
+            The data buffer to read from. This will be copied into the Rust function's memory,
+            so for large buffers this will use more memory.
+
+        :param offset:
+
+            The offset within the file to write at. If this is a positive integer, this is an
+            absolute offset within the file to write at.
+
+            If this is the constant ``-1``, then this will write at the current file's seek
+            position.
+
+        :param count:
+
+            The number of bytes to write from the provided buffer. This defaults to the size of
+            the buffer, and cannot be larger than the buffer.
+
+        :param buffer_offset:
+
+            The offset within the buffer to start writing from. This defaults to the first byte
+            of the buffer, and cannot be beyond the end of the buffer.
+        """
+
+        if not (ring := self._the_ring()):
+            raise RuntimeError("The ring is closed")
+
+        if file_offset < 0 and file_offset < -1:
+            raise ValueError("Can't pass negative offset", file_offset, "for this operation")
+
+        size = count if count is not None else len(buffer)
+        buffer_offset = buffer_offset if buffer_offset is not None else 0
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_write(ring, fd, buffer, size, buffer_offset, file_offset, user_data)
         return user_data
 
 

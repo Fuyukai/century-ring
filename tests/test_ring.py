@@ -41,3 +41,29 @@ def test_openat():
         assert ring.submit_and_wait(1) == 1
         open_zero_cqe = ring.get_completion_entries()[0]
         raise_for_cqe(open_zero_cqe)
+        scope.add(open_zero_cqe.result)
+
+
+def test_write_and_read():
+    with make_io_ring() as ring, AutoclosingScope() as scope:
+        ring.prep_openat(
+            None, b"/tmp", FileOpenMode.READ_WRITE, flags={FileOpenFlag.TEMPORARY_FILE}
+        )
+        ring.submit_and_wait()
+        raw_cqe = ring.get_completion_entries()[0]
+        raise_for_cqe(raw_cqe)
+        open_fd = scope.add(raw_cqe.result)
+
+        ring.prep_write(open_fd, b"wow!")
+        ring.submit_and_wait()
+        raise_for_cqe(ring.get_completion_entries()[0])
+
+        ring.prep_read(open_fd, 4096, offset=0)
+        ring.submit_and_wait()
+        read_cqe = ring.get_completion_entries()[0]
+        raise_for_cqe(read_cqe)
+        assert read_cqe.result == 4
+        buffer = read_cqe.buffer
+        assert buffer is not None
+        assert len(buffer) == 4
+        assert buffer == b"wow!"

@@ -32,13 +32,35 @@ def _RUSTFFI_create_io_ring(
     """
 
 def _RUSTFFI_ioring_prep_openat(
-    ring: TheIoRing, dirfd: int, file_path: bytes, user_data: int, flags: int, mode: int, /
-) -> None:
+    ring: TheIoRing,
+    dirfd: int,
+    file_path: bytes,
+    user_data: int,
+    flags: int,
+    mode: int,
+    /,
+) -> int:
     """
     Prepares an openat(2) call through ``io_uring``.
     """
 
-def _RUSTFFI_ioring_prep_read(ring: TheIoRing, fd: int, max_size: int, user_data: int, /) -> None:
+def _RUSTFFI_ioring_prep_read(
+    ring: TheIoRing, fd: int, max_size: int, offset: int, user_data: int, /
+) -> None:
     """
-    Prepares a read(2) call through ``io_uring``.
+    Prepares a pread(2) call through ``io_uring``.
+    """
+
+def _RUSTFFI_ioring_prep_write(
+    ring: TheIoRing,
+    fd: int,
+    buf: bytes | bytearray,
+    size: int,
+    buffer_offset: int,
+    file_offset: int,
+    user_data: int,
+    /,
+) -> None:
+    """
+    Prepares a pwrite(2) call through ``io_uring``.
     """

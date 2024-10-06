@@ -15,6 +15,10 @@ class AutoclosingScope:
 
     fds: list[int] = attr.field(factory=list)
 
+    def add(self, fd: int) -> int:
+        self.fds.append(fd)
+        return fd
+
     def __enter__(self) -> Self:
         return self
 
