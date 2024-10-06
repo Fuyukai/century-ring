@@ -24,6 +24,11 @@ class TheIoRing:
         Gets the next user-data value, used for tracking objects internally.
         """
 
+    def register_eventfd(self, event_fd: int) -> None:
+        """
+        Registers an eventfd with the loop.
+        """
+
 def _RUSTFFI_create_io_ring(
     entries: int, cq_entries: int, sqlpoll_idle_ms: int, single_issuer: bool, /
 ) -> TheIoRing:

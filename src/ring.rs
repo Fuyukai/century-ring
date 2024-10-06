@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::atomic::AtomicU64};
+use std::{collections::HashMap, os::fd::RawFd, sync::atomic::AtomicU64};
 
 use io_uring::cqueue::Entry;
 use pyo3::{
@@ -37,7 +37,6 @@ impl CompletionEvent {
 pub struct TheIoRing {
     pub(crate) the_io_uring: io_uring::IoUring,
     pub(crate) probe: io_uring::Probe,
-    valid: bool,
 
     user_data_counter: AtomicU64,
 
@@ -140,8 +139,9 @@ impl TheIoRing {
         return Ok(completed_results);
     }
 
-    pub fn finish(&mut self) {
-        self.valid = false;
+    pub fn register_eventfd(&mut self, event_fd: RawFd) -> PyResult<()> {
+        self.the_io_uring.submitter().register_eventfd(event_fd)?;
+        return Ok(());
     }
 }
 
@@ -210,7 +210,6 @@ pub fn create_io_ring(
         let our_ring = TheIoRing {
             the_io_uring: ring,
             probe,
-            valid: true,
             user_data_counter: AtomicU64::new(0),
             owned_paths: HashMap::new(),
             owned_buffers: HashMap::new(),

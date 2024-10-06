@@ -65,6 +65,37 @@ class IoUring:
 
         return ring.get_completion_entries()
 
+    def register_eventfd(self, event_fd: int | None = None) -> int:
+        """
+        Registers an `eventfd <https://man7.org/linux/man-pages/man2/eventfd.2.html>`_ with the
+        ``io_uring``.
+
+        This will be written to every time a new completion queue entry is available in the loop.
+        This allows integrating the ``io_uring`` event loop into a more traditional
+        select/poll-based event loop without requiring additional code.
+
+        :param event_fd:
+
+            The actual eventfd to register, typically returned from :func:`os.eventfd`. If this is
+            None, then an eventfd will be created with sane flags.
+
+        :return: The ``event_fd`` passed in, or one created by this function.
+
+        .. warning::
+
+            The actual value of the eventfd cannot be relied on. Use it purely as a signal to wake
+            up and check the completion queue of the ioring.
+        """
+
+        if not (ring := self._the_ring()):
+            raise RuntimeError("The ring is closed")
+
+        if event_fd is None:
+            event_fd = os.eventfd(0, os.EFD_CLOEXEC | os.EFD_NONBLOCK)
+
+        ring.register_eventfd(event_fd)
+        return event_fd
+
     # actual methods
     def prep_openat(
         self,
