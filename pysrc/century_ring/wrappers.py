@@ -148,7 +148,7 @@ class IoUring:
             raise RuntimeError("The ring is closed")
 
         dirfd = relative_to if relative_to is not None else -1
-        raw_flags = enum_flags_to_int_flags(flags) if flags else 0
+        raw_flags = enum_flags_to_int_flags(flags) if flags else os.O_CLOEXEC
         user_data = ring.get_next_user_data()
 
         raw_flags |= open_mode.value
