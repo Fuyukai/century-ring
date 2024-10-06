@@ -10,6 +10,7 @@ from century_ring._century_ring import (
     CompletionEvent,
     TheIoRing,
     _RUSTFFI_create_io_ring,
+    _RUSTFFI_ioring_prep_close,
     _RUSTFFI_ioring_prep_openat,
     _RUSTFFI_ioring_prep_read,
     _RUSTFFI_ioring_prep_write,
@@ -156,6 +157,21 @@ class IoUring:
         _RUSTFFI_ioring_prep_openat(
             ring, dirfd, os.fsencode(path), user_data, raw_flags, permissions
         )
+        return user_data
+
+    def prep_close(self, fd: int) -> int:
+        """
+        Prepares a close(2) call. See the relevant man page for more details.
+
+        :param fd: The file descriptor to close.
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):
+            raise RuntimeError("The ring is closed")
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_close(ring, fd, user_data)
         return user_data
 
     def prep_read(self, fd: int, byte_count: int, offset: int = -1) -> int:

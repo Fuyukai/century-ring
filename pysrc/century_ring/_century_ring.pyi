@@ -69,3 +69,8 @@ def _RUSTFFI_ioring_prep_write(
     """
     Prepares a pwrite(2) call through ``io_uring``.
     """
+
+def _RUSTFFI_ioring_prep_close(ring: TheIoRing, fd: int, user_data: int) -> None:
+    """
+    Prepares a close(2) call through ``io_uring``.
+    """

@@ -1,8 +1,9 @@
 import os
 import select
 
-from century_ring.wrappers import make_io_ring
 import pytest
+
+from century_ring.wrappers import make_io_ring
 from tests import AutoclosingScope
 
 
@@ -59,3 +60,13 @@ def test_disabling_auto_submit():
 
         with pytest.raises(ValueError):
             ring.prep_read(file, 4096)
+
+
+def test_closing() -> None:
+    with make_io_ring() as ring:
+        r, w = os.pipe()
+        ring.prep_close(r)
+        ring.submit()
+
+        with pytest.raises(OSError):
+            os.read(r, 1234)
