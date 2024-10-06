@@ -30,7 +30,7 @@ class TheIoRing:
         """
 
 def _RUSTFFI_create_io_ring(
-    entries: int, cq_entries: int, sqlpoll_idle_ms: int, single_issuer: bool, /
+    entries: int, cq_entries: int, sqlpoll_idle_ms: int, single_issuer: bool, autosubmit: bool, /
 ) -> TheIoRing:
     """
     Creates a new ``io_uring``.

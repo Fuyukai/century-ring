@@ -39,6 +39,7 @@ pub struct TheIoRing {
     pub(crate) probe: io_uring::Probe,
 
     user_data_counter: AtomicU64,
+    autosubmit: bool,
 
     owned_paths: HashMap<u64, Vec<u8>>,
     owned_buffers: HashMap<u64, Vec<u8>>,
@@ -65,7 +66,7 @@ impl TheIoRing {
 
             let result = unsafe { self.the_io_uring.submission().push(entry) };
             if result.is_err() {
-                if needs_submit {
+                if needs_submit || !self.autosubmit {
                     return Err(PyValueError::new_err(
                         "submission queue is full and submitting didn't help!",
                     ));
@@ -152,6 +153,7 @@ pub fn create_io_ring(
     cq_entries: u32,
     sqlpoll_idle_ms: u32,
     single_issuer: bool,
+    autosubmit: bool,
 ) -> PyResult<TheIoRing> {
     return module.py().allow_threads(|| {
         // sanity checking for better errors
@@ -211,6 +213,7 @@ pub fn create_io_ring(
             the_io_uring: ring,
             probe,
             user_data_counter: AtomicU64::new(0),
+            autosubmit,
             owned_paths: HashMap::new(),
             owned_buffers: HashMap::new(),
         };

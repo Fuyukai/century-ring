@@ -248,6 +248,7 @@ def make_io_ring(
     cq_size: int | None = None,
     sqpoll_idle_ms: int | None = None,
     single_issuer: bool = True,
+    autosubmit: bool = True,
 ) -> Iterator[IoUring]:
     """
     Creates a new :class:`.IoUring` instance. This is a *context manager*; when the ``with`` block
@@ -281,10 +282,18 @@ def make_io_ring(
 
         If you pass this as True and yet attempt to access the ``io_uring`` from multiple threads
         anyway, you may be smited.
+
+    :param autosubmit:
+
+        Controls if the submission queue should automatically be submitted when it is full and
+        another operation wishes to push a job on.
+
+        If this is False, then trying to submit a new operation whilst the queue is full will
+        fail with a :class:`.ValueError`.
     """
 
     cq_size = cq_size if (cq_size and cq_size > 0) else 0
     sqpoll_idle_ms = sqpoll_idle_ms if (sqpoll_idle_ms and sqpoll_idle_ms > 0) else 0
 
-    ring = _RUSTFFI_create_io_ring(entries, cq_size, sqpoll_idle_ms, single_issuer)
+    ring = _RUSTFFI_create_io_ring(entries, cq_size, sqpoll_idle_ms, single_issuer, autosubmit)
     yield IoUring(_the_ring=ref(ring))
