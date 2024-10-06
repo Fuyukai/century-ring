@@ -55,6 +55,29 @@ impl TheIoRing {
     pub fn add_owned_buffer(&mut self, user_data: u64, buf: Vec<u8>) {
         self.owned_buffers.insert(user_data, buf);
     }
+
+    pub fn autosubmit(&mut self, py: Python<'_>, entry: &io_uring::squeue::Entry) -> PyResult<()> {
+        let mut needs_submit = false;
+
+        loop {
+            if needs_submit {
+                py.allow_threads(|| self.the_io_uring.submit())?;
+            }
+
+            let result = unsafe { self.the_io_uring.submission().push(entry) };
+            if result.is_err() {
+                if needs_submit {
+                    return Err(PyValueError::new_err(
+                        "submission queue is full and submitting didn't help!",
+                    ));
+                } else {
+                    needs_submit = true;
+                    continue;
+                }
+            }
+            return Ok(());
+        }
+    }
 }
 
 // exposed python methods

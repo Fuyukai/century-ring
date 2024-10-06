@@ -2,10 +2,7 @@ use std::os::fd::RawFd;
 
 use bytemuck::cast_slice;
 use io_uring::types::Fd;
-use pyo3::{
-    exceptions::{PyNotImplementedError, PyValueError},
-    pyfunction, PyResult, Python,
-};
+use pyo3::{exceptions::PyNotImplementedError, pyfunction, PyResult, Python};
 
 use crate::ring::TheIoRing;
 
@@ -25,7 +22,7 @@ pub fn ioring_prep_openat(
 
     let dir_fd = io_uring::types::Fd(dirfd);
     let mut owned_path = file_path.to_vec();
-    owned_path.push(0);  // null-terminate... 
+    owned_path.push(0); // null-terminate...
     let path_i8: &[i8] = cast_slice(owned_path.as_slice());
 
     let openat_op = io_uring::opcode::OpenAt::new(dir_fd, path_i8.as_ptr())
@@ -34,28 +31,9 @@ pub fn ioring_prep_openat(
         .build()
         .user_data(user_data);
 
-    let mut needs_submit = false;
-
-    loop {
-        if needs_submit {
-            ring.submit(py)?;
-        }
-
-        let result = unsafe { ring.the_io_uring.submission().push(&openat_op) };
-        if result.is_err() {
-            if needs_submit {
-                return Err(PyValueError::new_err(
-                    "submission queue is full and submitting didn't help!",
-                ));
-            } else {
-                needs_submit = true;
-                continue;
-            }
-        }
-
-        ring.add_owned_path(user_data, owned_path);
-        return Ok(());
-    }
+    ring.autosubmit(py, &openat_op)?;
+    ring.add_owned_path(user_data, owned_path);
+    return Ok(());
 }
 
 #[pyfunction(name = "_RUSTFFI_ioring_prep_read")]
@@ -75,26 +53,7 @@ pub fn ioring_prep_read(
         .build()
         .user_data(user_data);
 
-    let mut needs_submit = false;
-
-    loop {
-        if needs_submit {
-            ring.submit(py)?;
-        }
-
-        let result = unsafe { ring.the_io_uring.submission().push(&ring_op) };
-        if result.is_err() {
-            if needs_submit {
-                return Err(PyValueError::new_err(
-                    "submission queue is full and submitting didn't help!",
-                ));
-            } else {
-                needs_submit = true;
-                continue;
-            }
-        }
-
-        ring.add_owned_buffer(user_data, buf);
-        return Ok(());
-    }
+    ring.autosubmit(py, &ring_op)?;
+    ring.add_owned_buffer(user_data, buf);
+    return Ok(());
 }
