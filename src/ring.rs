@@ -56,12 +56,12 @@ impl TheIoRing {
         self.owned_buffers.insert(user_data, buf);
     }
 
-    pub fn autosubmit(&mut self, py: Python<'_>, entry: &io_uring::squeue::Entry) -> PyResult<()> {
+    pub fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
         let mut needs_submit = false;
 
         loop {
             if needs_submit {
-                py.allow_threads(|| self.the_io_uring.submit())?;
+                self.the_io_uring.submit()?;
             }
 
             let result = unsafe { self.the_io_uring.submission().push(entry) };
@@ -89,8 +89,8 @@ impl TheIoRing {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
-    pub fn submit(&mut self, py: Python<'_>) -> PyResult<usize> {
-        let res = py.allow_threads(|| self.the_io_uring.submit())?;
+    pub fn submit(&mut self) -> PyResult<usize> {
+        let res = self.the_io_uring.submit()?;
         return Ok(res);
     }
 

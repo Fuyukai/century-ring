@@ -4,7 +4,7 @@ use bytemuck::cast_slice;
 use io_uring::types::Fd;
 use pyo3::{
     exceptions::{PyNotImplementedError, PyValueError},
-    pyfunction, PyResult, Python,
+    pyfunction, PyResult,
 };
 
 use crate::ring::TheIoRing;
@@ -17,7 +17,6 @@ pub fn ioring_prep_openat(
     user_data: u64,
     flags: i32,
     mode: u32,
-    py: Python<'_>,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::OpenAt::CODE) {
         return Err(PyNotImplementedError::new_err("openat"));
@@ -34,7 +33,7 @@ pub fn ioring_prep_openat(
         .build()
         .user_data(user_data);
 
-    ring.autosubmit(py, &openat_op)?;
+    ring.autosubmit(&openat_op)?;
     ring.add_owned_path(user_data, owned_path);
     return Ok(());
 }
@@ -46,7 +45,6 @@ pub fn ioring_prep_read(
     max_size: u32,
     offset: i64,
     user_data: u64,
-    py: Python<'_>,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Read::CODE) {
         return Err(PyNotImplementedError::new_err("read"));
@@ -58,7 +56,7 @@ pub fn ioring_prep_read(
         .build()
         .user_data(user_data);
 
-    ring.autosubmit(py, &ring_op)?;
+    ring.autosubmit(&ring_op)?;
     ring.add_owned_buffer(user_data, buf);
     return Ok(());
 }
@@ -72,7 +70,6 @@ pub fn ioring_prep_write(
     buffer_offset: usize,
     file_offset: i64,
     user_data: u64,
-    py: Python<'_>,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Write::CODE) {
         return Err(PyNotImplementedError::new_err("read"));
@@ -111,7 +108,7 @@ pub fn ioring_prep_write(
         .build()
         .user_data(user_data);
 
-    ring.autosubmit(py, &ring_op)?;
+    ring.autosubmit(&ring_op)?;
     ring.add_owned_buffer(user_data, vec);
 
     return Ok(());
