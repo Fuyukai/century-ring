@@ -247,7 +247,7 @@ class IoUring:
         if not (ring := self._the_ring()):
             raise RuntimeError("The ring is closed")
 
-        if file_offset < 0 and file_offset < -1:
+        if file_offset < -1:
             raise ValueError("Can't pass negative offset", file_offset, "for this operation")
 
         size = count if count is not None else len(buffer)

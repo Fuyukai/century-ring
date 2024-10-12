@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 from century_ring import FileOpenFlag, FileOpenMode, make_io_ring, raise_for_cqe
 from tests import AutoclosingScope
 
@@ -67,3 +71,20 @@ def test_write_and_read():
         assert buffer is not None
         assert len(buffer) == 4
         assert buffer == b"wow!"
+
+
+def test_invalid_writes():
+    with make_io_ring() as ring:
+        # just reuse stdout here
+        with pytest.raises(ValueError) as e1:
+            ring.prep_write(sys.stderr.fileno(), b"123", count=4)
+
+        assert e1.match("can't write")
+
+        with pytest.raises(ValueError) as e2:
+            ring.prep_write(sys.stderr.fileno(), b"123", count=3, buffer_offset=2)
+
+        assert e2.match("out of range")
+
+        with pytest.raises(ValueError):
+            ring.prep_write(sys.stderr.fileno(), b"123", file_offset=-100)
