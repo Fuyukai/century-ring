@@ -1,7 +1,7 @@
 use std::os::fd::RawFd;
 
 use bytemuck::cast_slice;
-use io_uring::types::Fd;
+use io_uring::{squeue::Flags, types::Fd};
 use pyo3::{exceptions::PyNotImplementedError, pyfunction, PyResult};
 
 use crate::{ring::TheIoRing, shared::check_write_buffer};
@@ -14,6 +14,7 @@ pub fn ioring_prep_openat(
     user_data: u64,
     flags: i32,
     mode: u32,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::OpenAt::CODE) {
         return Err(PyNotImplementedError::new_err("openat"));
@@ -28,6 +29,7 @@ pub fn ioring_prep_openat(
         .flags(flags)
         .mode(mode)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&openat_op)?;
@@ -42,6 +44,7 @@ pub fn ioring_prep_read(
     max_size: u32,
     offset: i64,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Read::CODE) {
         return Err(PyNotImplementedError::new_err("read"));
@@ -51,6 +54,7 @@ pub fn ioring_prep_read(
     let ring_op = io_uring::opcode::Read::new(Fd(fd), buf.as_mut_ptr(), max_size)
         .offset(offset as u64)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&ring_op)?;
@@ -67,6 +71,7 @@ pub fn ioring_prep_write(
     buffer_offset: usize,
     file_offset: i64,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Write::CODE) {
         return Err(PyNotImplementedError::new_err("write"));
@@ -81,6 +86,7 @@ pub fn ioring_prep_write(
     let ring_op = io_uring::opcode::Write::new(Fd(fd), vec.as_ptr(), vec.len() as u32)
         .offset(file_offset as u64)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&ring_op)?;

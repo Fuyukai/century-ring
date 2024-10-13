@@ -2,6 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 use std::{net::IpAddr, os::fd::RawFd};
 
+use io_uring::squeue::Flags;
 use io_uring::types::Fd;
 use nix::sys::socket::SockaddrLike;
 use pyo3::exceptions::PyNotImplementedError;
@@ -17,6 +18,7 @@ pub fn ioring_prep_create_socket(
     socket_type: i32,
     protocol: i32,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Socket::CODE) {
         return Err(PyNotImplementedError::new_err("socket"));
@@ -24,6 +26,7 @@ pub fn ioring_prep_create_socket(
 
     let entry = io_uring::opcode::Socket::new(domain, socket_type, protocol)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;
@@ -36,6 +39,7 @@ fn do_sockaddr_submit(
     fd: RawFd,
     addr: SocketAddr,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     let c_addr: Box<dyn SockaddrLike + Send> = match addr {
         SocketAddr::V4(it) => Box::new(nix::sys::socket::SockaddrIn::from(it)),
@@ -44,6 +48,7 @@ fn do_sockaddr_submit(
 
     let entry = io_uring::opcode::Connect::new(Fd(fd), c_addr.as_ptr(), c_addr.len())
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;
@@ -58,6 +63,7 @@ pub fn ioring_prep_connect_v4(
     ip: &str,
     port: u16,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Connect::CODE) {
         return Err(PyNotImplementedError::new_err("connect"));
@@ -66,7 +72,7 @@ pub fn ioring_prep_connect_v4(
     let v4 = Ipv4Addr::from_str(ip)?;
     let rust_addr = SocketAddr::new(IpAddr::V4(v4), port);
 
-    do_sockaddr_submit(ring, fd, rust_addr, user_data)?;
+    do_sockaddr_submit(ring, fd, rust_addr, user_data, sqe_flags)?;
 
     return Ok(());
 }
@@ -78,6 +84,7 @@ pub fn ioring_prep_connect_v6(
     ip: &str,
     port: u16,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Connect::CODE) {
         return Err(PyNotImplementedError::new_err("connect"));
@@ -86,7 +93,7 @@ pub fn ioring_prep_connect_v6(
     let v6 = Ipv6Addr::from_str(ip)?;
     let rust_addr = SocketAddr::new(IpAddr::V6(v6), port);
 
-    do_sockaddr_submit(ring, fd, rust_addr, user_data)?;
+    do_sockaddr_submit(ring, fd, rust_addr, user_data, sqe_flags)?;
 
     return Ok(());
 }
@@ -100,6 +107,7 @@ pub fn ioring_prep_send(
     buffer_offset: usize,
     flags: i32,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Send::CODE) {
         return Err(PyNotImplementedError::new_err("send"));
@@ -110,6 +118,7 @@ pub fn ioring_prep_send(
     let entry = io_uring::opcode::Send::new(Fd(fd), vec.as_ptr(), vec.len() as u32)
         .flags(flags)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;
@@ -125,6 +134,7 @@ pub fn ioring_prep_recv(
     max_size: u32,
     flags: i32,
     user_data: u64,
+    sqe_flags: u8,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Recv::CODE) {
         return Err(PyNotImplementedError::new_err("recv"));
@@ -134,6 +144,7 @@ pub fn ioring_prep_recv(
     let entry = io_uring::opcode::Recv::new(Fd(fd), buf.as_mut_ptr(), max_size)
         .flags(flags)
         .build()
+        .flags(Flags::from_bits_truncate(sqe_flags))
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;

@@ -112,6 +112,7 @@ class IoUring:
         open_mode: FileOpenMode,
         flags: Iterable[FileOpenFlag] | None = None,
         permissions: int = 0o666,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares an openat(2) call. See the relevant man page for more details.
@@ -149,6 +150,8 @@ class IoUring:
             umask; for example, if a user's umask is ``0o022`` and ``mode`` is the value ``0o666``
             (the default value), then the final file will be created with ``0o644`` permissions.
 
+        :param sqe_flags: See :func:`.make_uring_flags`.
+
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -160,13 +163,14 @@ class IoUring:
         user_data = ring.get_next_user_data()
 
         raw_flags |= open_mode.value
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
 
         _RUSTFFI_ioring_prep_openat(
-            ring, dirfd, os.fsencode(path), user_data, raw_flags, permissions
+            ring, dirfd, os.fsencode(path), user_data, raw_flags, permissions, sqe_flags
         )
         return user_data
 
-    def prep_close(self, fd: int) -> int:
+    def prep_close(self, fd: int, sqe_flags: int | None = None) -> int:
         """
         Prepares a close(2) call. See the relevant man page for more details.
 
@@ -177,11 +181,15 @@ class IoUring:
         if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_close(ring, fd, user_data)
+        _RUSTFFI_ioring_prep_close(ring, fd, user_data, sqe_flags)
         return user_data
 
-    def prep_read(self, fd: int, byte_count: int, offset: int = -1) -> int:
+    def prep_read(
+        self, fd: int, byte_count: int, offset: int = -1, sqe_flags: int | None = None
+    ) -> int:
         """
         Prepares a pread(2) call. See the relevant man page for more details.
 
@@ -207,8 +215,9 @@ class IoUring:
         if offset < 0 and offset < -1:
             raise ValueError("Can't pass negative offset", offset, "for this operation")
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_read(ring, fd, byte_count, offset, user_data)
+        _RUSTFFI_ioring_prep_read(ring, fd, byte_count, offset, user_data, sqe_flags)
         return user_data
 
     def prep_write(
@@ -218,6 +227,7 @@ class IoUring:
         file_offset: int = -1,
         count: int | None = None,
         buffer_offset: int | None = None,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares a pwrite(2) call. See the relevant man page for more details.
@@ -263,11 +273,20 @@ class IoUring:
         buffer_offset = buffer_offset if buffer_offset is not None else 0
 
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_write(ring, fd, buffer, size, buffer_offset, file_offset, user_data)
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+        _RUSTFFI_ioring_prep_write(
+            ring, fd, buffer, size, buffer_offset, file_offset, user_data, sqe_flags
+        )
         return user_data
 
     def prep_create_socket(
-        self, domain: int, type: int, protocol: int = 0, *, nonblocking: bool = False
+        self,
+        domain: int,
+        type: int,
+        protocol: int = 0,
+        *,
+        nonblocking: bool = False,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares a socket(2) call. See the relevant man page for more information.
@@ -310,10 +329,14 @@ class IoUring:
         if nonblocking:
             type |= socket.SOCK_NONBLOCK
 
-        _RUSTFFI_ioring_prep_create_socket(ring, domain, type, protocol, user_data)
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+
+        _RUSTFFI_ioring_prep_create_socket(ring, domain, type, protocol, user_data, sqe_flags)
         return user_data
 
-    def prep_connect_v4(self, fd: int, address: str | ipaddress.IPv4Address, port: int) -> int:
+    def prep_connect_v4(
+        self, fd: int, address: str | ipaddress.IPv4Address, port: int, sqe_flags: int | None = None
+    ) -> int:
         """
         Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
 
@@ -332,11 +355,15 @@ class IoUring:
         if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_connect_v4(ring, fd, str(address), port, user_data)
+        _RUSTFFI_ioring_prep_connect_v4(ring, fd, str(address), port, user_data, sqe_flags)
         return user_data
 
-    def prep_connect_v6(self, fd: int, address: str | ipaddress.IPv6Address, port: int) -> int:
+    def prep_connect_v6(
+        self, fd: int, address: str | ipaddress.IPv6Address, port: int, sqe_flags: int | None = None
+    ) -> int:
         """
         Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
 
@@ -349,11 +376,15 @@ class IoUring:
         if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_connect_v6(ring, fd, str(address), port, user_data)
+        _RUSTFFI_ioring_prep_connect_v6(ring, fd, str(address), port, user_data, sqe_flags)
         return user_data
 
-    def prep_recv(self, fd: int, byte_count: int, flags: int = 0) -> int:
+    def prep_recv(
+        self, fd: int, byte_count: int, flags: int = 0, sqe_flags: int | None = None
+    ) -> int:
         """
         Prepares a recv(2) call. See the relevant man page for more info.
 
@@ -366,8 +397,9 @@ class IoUring:
         if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_recv(ring, fd, byte_count, flags, user_data)
+        _RUSTFFI_ioring_prep_recv(ring, fd, byte_count, flags, user_data, sqe_flags)
         return user_data
 
     def prep_send(
@@ -377,6 +409,7 @@ class IoUring:
         count: int | None = None,
         buffer_offset: int | None = None,
         flags: int = 0,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares a send(2) call. See the relevant man page for more info.
@@ -410,8 +443,12 @@ class IoUring:
         size = count if count is not None else len(buffer)
         buffer_offset = buffer_offset if buffer_offset is not None else 0
 
+        sqe_flags = sqe_flags if sqe_flags is not None else 0
+
         user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_send(ring, fd, buffer, size, buffer_offset, flags, user_data)
+        _RUSTFFI_ioring_prep_send(
+            ring, fd, buffer, size, buffer_offset, flags, user_data, sqe_flags
+        )
         return user_data
 
 

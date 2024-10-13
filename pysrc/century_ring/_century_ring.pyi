@@ -36,6 +36,20 @@ def _RUSTFFI_create_io_ring(
     Creates a new ``io_uring``.
     """
 
+def _RUSTFFI_make_uring_flags(
+    fixed_file: bool,
+    io_drain: bool,
+    io_link: bool,
+    io_hardlink: bool,
+    io_async: bool,
+    buffer_select: bool,
+    skip_success: bool,
+    /,
+) -> int:
+    """
+    Sets up a set of io_uring flags based on the input booleans.
+    """
+
 def _RUSTFFI_ioring_prep_openat(
     ring: TheIoRing,
     dirfd: int,
@@ -43,6 +57,7 @@ def _RUSTFFI_ioring_prep_openat(
     user_data: int,
     flags: int,
     mode: int,
+    sqe_flags: int,
     /,
 ) -> int:
     """
@@ -50,7 +65,7 @@ def _RUSTFFI_ioring_prep_openat(
     """
 
 def _RUSTFFI_ioring_prep_read(
-    ring: TheIoRing, fd: int, max_size: int, offset: int, user_data: int, /
+    ring: TheIoRing, fd: int, max_size: int, offset: int, user_data: int, sqe_flags: int, /
 ) -> None:
     """
     Prepares a pread(2) call through ``io_uring``.
@@ -64,40 +79,41 @@ def _RUSTFFI_ioring_prep_write(
     buffer_offset: int,
     file_offset: int,
     user_data: int,
+    sqe_flags: int,
     /,
 ) -> None:
     """
     Prepares a pwrite(2) call through ``io_uring``.
     """
 
-def _RUSTFFI_ioring_prep_close(ring: TheIoRing, fd: int, user_data: int, /) -> None:
+def _RUSTFFI_ioring_prep_close(ring: TheIoRing, fd: int, user_data: int, sqe_flags: int, /) -> None:
     """
     Prepares a close(2) call through ``io_uring``.
     """
 
 def _RUSTFFI_ioring_prep_create_socket(
-    ring: TheIoRing, domain: int, type: int, protocol: int, user_data: int, /
+    ring: TheIoRing, domain: int, type: int, protocol: int, user_data: int, sqe_flags: int, /
 ) -> None:
     """
     Prepares a socket(2) call through ``io_uring``.
     """
 
 def _RUSTFFI_ioring_prep_connect_v4(
-    ring: TheIoRing, fd: int, addr: str, port: int, user_data: int, /
+    ring: TheIoRing, fd: int, addr: str, port: int, user_data: int, sqe_flags: int, /
 ) -> None:
     """
     Prepares a IPv4 connect(2) call through ``io_uring``.
     """
 
 def _RUSTFFI_ioring_prep_connect_v6(
-    ring: TheIoRing, fd: int, addr: str, port: int, user_data: int, /
+    ring: TheIoRing, fd: int, addr: str, port: int, user_data: int, sqe_flags: int, /
 ) -> None:
     """
     Prepares a IPv6 connect(2) call through ``io_uring``.
     """
 
 def _RUSTFFI_ioring_prep_recv(
-    ring: TheIoRing, fd: int, max_size: int, flags: int, user_data: int, /
+    ring: TheIoRing, fd: int, max_size: int, flags: int, user_data: int, sqe_flags: int, /
 ) -> None:
     """
     Prepares a recv(2) call through ``io_uring``.
@@ -111,6 +127,7 @@ def _RUSTFFI_ioring_prep_send(
     buffer_offset: int,
     flags: int,
     user_data: int,
+    sqe_flags: int,
     /,
 ) -> None:
     """
