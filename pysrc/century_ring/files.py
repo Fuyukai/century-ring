@@ -64,6 +64,10 @@ class FileOpenFlag(enum.Enum):
 
 
 def enum_flags_to_int_flags(flags: Iterable[FileOpenFlag]) -> int:
+    """
+    Converts an enum of :class:`.FileOpenFlag` to integer flags used by open(2) and friends.
+    """
+
     final_flags = os.O_CLOEXEC
 
     flags = set(flags)

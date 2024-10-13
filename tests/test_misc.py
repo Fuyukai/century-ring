@@ -1,7 +1,10 @@
+import errno
 import os
 
 import pytest
 
+from century_ring import raise_for_cqe
+from century_ring.files import FileOpenMode
 from century_ring.wrappers import make_io_ring
 from tests import AutoclosingScope
 
@@ -49,3 +52,15 @@ def test_closing() -> None:
 
         with pytest.raises(OSError):
             os.read(r, 1234)
+
+
+def test_error() -> None:
+    with make_io_ring() as ring:
+        ring.prep_openat(None, b"/dev/definitely-does-not-exist", FileOpenMode.READ_ONLY)
+        ring.submit_and_wait(1)
+        cqe = ring.get_completion_entries()[0]
+
+        with pytest.raises(OSError) as e:
+            raise_for_cqe(cqe)
+
+        assert e.value.errno == errno.ENOENT

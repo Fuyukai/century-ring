@@ -2,12 +2,9 @@ use std::os::fd::RawFd;
 
 use bytemuck::cast_slice;
 use io_uring::types::Fd;
-use pyo3::{
-    exceptions::{PyNotImplementedError, PyValueError},
-    pyfunction, PyResult,
-};
+use pyo3::{exceptions::PyNotImplementedError, pyfunction, PyResult};
 
-use crate::ring::TheIoRing;
+use crate::{ring::TheIoRing, shared::check_write_buffer};
 
 #[pyfunction(name = "_RUSTFFI_ioring_prep_openat")]
 pub fn ioring_prep_openat(
@@ -66,38 +63,16 @@ pub fn ioring_prep_write(
     ring: &mut TheIoRing,
     fd: RawFd,
     data: &[u8],
-    size: u32,
+    size: usize,
     buffer_offset: usize,
     file_offset: i64,
     user_data: u64,
 ) -> PyResult<()> {
     if !ring.probe.is_supported(io_uring::opcode::Write::CODE) {
-        return Err(PyNotImplementedError::new_err("read"));
+        return Err(PyNotImplementedError::new_err("write"));
     }
 
-    if size as usize > data.len() {
-        let message = format!("can't write {} bytes from a vec of {}", size, data.len());
-        return Err(PyValueError::new_err(message));
-    }
-
-    if buffer_offset > data.len() {
-        let message = format!(
-            "offset {} out of range from vec of {}",
-            buffer_offset,
-            data.len()
-        );
-        return Err(PyValueError::new_err(message));
-    }
-
-    let end_offset = buffer_offset + (size as usize);
-    if end_offset > data.len() {
-        let message = format!(
-            "offset {} out of range from vec of {}",
-            end_offset,
-            data.len()
-        );
-        return Err(PyValueError::new_err(message));
-    }
+    let end_offset = check_write_buffer(data, size, buffer_offset)?;
 
     // like the read op, we need to make sure the read-from buffer outlives us.
     // so we copy it to our own buffer, let the ring own it, and then it's deallocated later on

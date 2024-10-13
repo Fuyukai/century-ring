@@ -10,5 +10,6 @@ crate-type = ["cdylib"]
 [dependencies]
 bytemuck = "=1.18.0"
 io-uring = "=0.7.0"
+nix = { version = "=0.29.0", features = ["socket", "net"]}
 procfs = "=0.16.0"
 pyo3 = "=0.22.0"

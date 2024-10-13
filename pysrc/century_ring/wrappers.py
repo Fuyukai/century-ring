@@ -1,4 +1,6 @@
+import ipaddress
 import os
+import socket
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from os import PathLike
@@ -11,8 +13,13 @@ from century_ring._century_ring import (
     TheIoRing,
     _RUSTFFI_create_io_ring,
     _RUSTFFI_ioring_prep_close,
+    _RUSTFFI_ioring_prep_connect_v4,
+    _RUSTFFI_ioring_prep_connect_v6,
+    _RUSTFFI_ioring_prep_create_socket,
     _RUSTFFI_ioring_prep_openat,
     _RUSTFFI_ioring_prep_read,
+    _RUSTFFI_ioring_prep_recv,
+    _RUSTFFI_ioring_prep_send,
     _RUSTFFI_ioring_prep_write,
 )
 from century_ring.files import FileOpenFlag, FileOpenMode, enum_flags_to_int_flags
@@ -39,7 +46,7 @@ class IoUring:
         Submits all outstanding entries in the current submission queue.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         return ring.submit()
@@ -61,7 +68,7 @@ class IoUring:
         Gets a list of completion entries from the completion queue.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         return ring.get_completion_entries()
@@ -88,7 +95,7 @@ class IoUring:
             up and check the completion queue of the ioring.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         if event_fd is None:
@@ -145,7 +152,7 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         dirfd = relative_to if relative_to is not None else -1
@@ -167,7 +174,7 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         user_data = ring.get_next_user_data()
@@ -194,7 +201,7 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         if offset < 0 and offset < -1:
@@ -242,9 +249,11 @@ class IoUring:
 
             The offset within the buffer to start writing from. This defaults to the first byte
             of the buffer, and cannot be beyond the end of the buffer.
+
+        :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):
+        if not (ring := self._the_ring()):  # pragma: no cover
             raise RuntimeError("The ring is closed")
 
         if file_offset < -1:
@@ -255,6 +264,154 @@ class IoUring:
 
         user_data = ring.get_next_user_data()
         _RUSTFFI_ioring_prep_write(ring, fd, buffer, size, buffer_offset, file_offset, user_data)
+        return user_data
+
+    def prep_create_socket(
+        self, domain: int, type: int, protocol: int = 0, *, nonblocking: bool = False
+    ) -> int:
+        """
+        Prepares a socket(2) call. See the relevant man page for more information.
+
+        :param domain:
+
+            The "domain" (better known as protocol family) for this socket.
+
+            In nearly all cases, this will be :attr:`socket.AF_INET` or :attr:`socket.AF_INET6`.
+
+        :param type:
+
+            The type for this socket.
+
+            In nearly all cases, this will be :attr:`socket.SOCK_STREAM` or
+            :attr:`socket.SOCK_DGRAM`.
+
+        :param protocol:
+
+            The protocol that this socket will carry.
+
+            This should match the value passed for ``type``, i.e. don't pass
+            :attr:`socket.IPPROTO_UDP` for a ``SOCK_STREAM`` socket.
+
+        :param nonblocking:
+
+            If true, then this socket will be created as a non-blocking socket.
+
+            This saves an extra call to fcntl(2) to set O_NONBLOCK.
+
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):  # pragma: no cover
+            raise RuntimeError("The ring is closed")
+
+        user_data = ring.get_next_user_data()
+        type |= socket.SOCK_CLOEXEC
+
+        if nonblocking:
+            type |= socket.SOCK_NONBLOCK
+
+        _RUSTFFI_ioring_prep_create_socket(ring, domain, type, protocol, user_data)
+        return user_data
+
+    def prep_connect_v4(self, fd: int, address: str | ipaddress.IPv4Address, port: int) -> int:
+        """
+        Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
+
+        :param fd: The file descriptor of the socket to connect using.
+        :param address:
+
+            The IPv4 address to connect to.
+
+            This should either be a :class:`str` containing the four-octet IPv4 address
+            (e.g. ``'172.16.39.25``) or a :class:`ipaddress.IPv4Address`.
+
+        :param port: The port to connect to.
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):  # pragma: no cover
+            raise RuntimeError("The ring is closed")
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_connect_v4(ring, fd, str(address), port, user_data)
+        return user_data
+
+    def prep_connect_v6(self, fd: int, address: str | ipaddress.IPv6Address, port: int) -> int:
+        """
+        Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
+
+        :param fd: The file descriptor of the socket to connect using.
+        :param address: The IPv6 address to connect to.
+        :param port: The port to connect to.
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):  # pragma: no cover
+            raise RuntimeError("The ring is closed")
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_connect_v6(ring, fd, str(address), port, user_data)
+        return user_data
+
+    def prep_recv(self, fd: int, byte_count: int, flags: int = 0) -> int:
+        """
+        Prepares a recv(2) call. See the relevant man page for more info.
+
+        :param fd: The file descriptor of the socket to receive on.
+        :param byte_count: The *maximum* number of bytes to read. The actual amount may be lower.
+        :param flags: A set of socket-specific flags for this operation.
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):  # pragma: no cover
+            raise RuntimeError("The ring is closed")
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_recv(ring, fd, byte_count, flags, user_data)
+        return user_data
+
+    def prep_send(
+        self,
+        fd: int,
+        buffer: bytes | bytearray,
+        count: int | None = None,
+        buffer_offset: int | None = None,
+        flags: int = 0,
+    ) -> int:
+        """
+        Prepares a send(2) call. See the relevant man page for more info.
+
+        The completion queue event for this submission will have the actual byte count *written*
+        in the result field, as well as a copy of the buffer that was written for memory safetty
+        purposes. The byte count may be less than the count requested.
+
+        :param fd: The file descriptor to write the data to.
+        :param buffer:
+
+            The data buffer to read from. This will be copied into the Rust function's memory,
+            so for large buffers this will use more memory.
+
+        :param count:
+
+            The number of bytes to write from the provided buffer. This defaults to the size of
+            the buffer, and cannot be larger than the buffer.
+
+        :param buffer_offset:
+
+            The offset within the buffer to start writing from. This defaults to the first byte
+            of the buffer, and cannot be beyond the end of the buffer.
+
+        :return: The user-data value that was stored in the SQE.
+        """
+
+        if not (ring := self._the_ring()):  # pragma: no cover
+            raise RuntimeError("The ring is closed")
+
+        size = count if count is not None else len(buffer)
+        buffer_offset = buffer_offset if buffer_offset is not None else 0
+
+        user_data = ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_send(ring, fd, buffer, size, buffer_offset, flags, user_data)
         return user_data
 
 

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, os::fd::RawFd, sync::atomic::AtomicU64};
 
 use io_uring::cqueue::Entry;
+use nix::sys::socket::SockaddrLike;
 use pyo3::{
     exceptions::{PyOSError, PyValueError},
     pyclass, pyfunction, pymethods,
@@ -43,6 +44,7 @@ pub struct TheIoRing {
 
     owned_paths: HashMap<u64, Vec<u8>>,
     owned_buffers: HashMap<u64, Vec<u8>>,
+    owned_sockaddrs: HashMap<u64, Box<dyn SockaddrLike + Send>>,
 }
 
 // non-python methods
@@ -54,6 +56,10 @@ impl TheIoRing {
 
     pub fn add_owned_buffer(&mut self, user_data: u64, buf: Vec<u8>) {
         self.owned_buffers.insert(user_data, buf);
+    }
+
+    pub fn add_owned_sockaddr(&mut self, user_data: u64, addr: Box<dyn SockaddrLike + Send>) {
+        self.owned_sockaddrs.insert(user_data, addr);
     }
 
     pub fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
@@ -127,7 +133,8 @@ impl TheIoRing {
                     buf.resize(e.result() as usize, 0);
                     return buf;
                 });
-                self.owned_paths.remove(&e.user_data());
+                drop(self.owned_paths.remove(&e.user_data()));
+                self.owned_sockaddrs.remove(&e.user_data());
 
                 return CompletionEvent {
                     user_data: e.user_data(),
@@ -216,6 +223,7 @@ pub fn create_io_ring(
             autosubmit,
             owned_paths: HashMap::new(),
             owned_buffers: HashMap::new(),
+            owned_sockaddrs: HashMap::new(),
         };
 
         return Ok(our_ring);
