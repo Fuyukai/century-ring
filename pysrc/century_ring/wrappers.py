@@ -151,7 +151,6 @@ class IoUring:
             (the default value), then the final file will be created with ``0o644`` permissions.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
-
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -170,12 +169,13 @@ class IoUring:
         )
         return user_data
 
-    def prep_close(self, fd: int, sqe_flags: int | None = None) -> int:
+    def prep_close(self, fd: int, *, sqe_flags: int | None = None) -> int:
         """
         Prepares a close(2) call. See the relevant man page for more details.
 
         :param fd: The file descriptor to close.
         :return: The user-data value that was stored in the SQE.
+        :param sqe_flags: See :func:`.make_uring_flags`.
         """
 
         if not (ring := self._the_ring()):  # pragma: no cover
@@ -188,7 +188,7 @@ class IoUring:
         return user_data
 
     def prep_read(
-        self, fd: int, byte_count: int, offset: int = -1, sqe_flags: int | None = None
+        self, fd: int, byte_count: int, offset: int = -1, *, sqe_flags: int | None = None
     ) -> int:
         """
         Prepares a pread(2) call. See the relevant man page for more details.
@@ -206,6 +206,7 @@ class IoUring:
             If this is the constant ``-1``, then this will read from the current file's seek
             position.
 
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -227,6 +228,7 @@ class IoUring:
         file_offset: int = -1,
         count: int | None = None,
         buffer_offset: int | None = None,
+        *,
         sqe_flags: int | None = None,
     ) -> int:
         """
@@ -260,6 +262,7 @@ class IoUring:
             The offset within the buffer to start writing from. This defaults to the first byte
             of the buffer, and cannot be beyond the end of the buffer.
 
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -317,6 +320,7 @@ class IoUring:
 
             This saves an extra call to fcntl(2) to set O_NONBLOCK.
 
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -335,7 +339,12 @@ class IoUring:
         return user_data
 
     def prep_connect_v4(
-        self, fd: int, address: str | ipaddress.IPv4Address, port: int, sqe_flags: int | None = None
+        self,
+        fd: int,
+        address: str | ipaddress.IPv4Address,
+        port: int,
+        *,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
@@ -349,6 +358,7 @@ class IoUring:
             (e.g. ``'172.16.39.25``) or a :class:`ipaddress.IPv4Address`.
 
         :param port: The port to connect to.
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -362,7 +372,12 @@ class IoUring:
         return user_data
 
     def prep_connect_v6(
-        self, fd: int, address: str | ipaddress.IPv6Address, port: int, sqe_flags: int | None = None
+        self,
+        fd: int,
+        address: str | ipaddress.IPv6Address,
+        port: int,
+        *,
+        sqe_flags: int | None = None,
     ) -> int:
         """
         Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
@@ -370,6 +385,7 @@ class IoUring:
         :param fd: The file descriptor of the socket to connect using.
         :param address: The IPv6 address to connect to.
         :param port: The port to connect to.
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -383,7 +399,7 @@ class IoUring:
         return user_data
 
     def prep_recv(
-        self, fd: int, byte_count: int, flags: int = 0, sqe_flags: int | None = None
+        self, fd: int, byte_count: int, flags: int = 0, *, sqe_flags: int | None = None
     ) -> int:
         """
         Prepares a recv(2) call. See the relevant man page for more info.
@@ -391,6 +407,7 @@ class IoUring:
         :param fd: The file descriptor of the socket to receive on.
         :param byte_count: The *maximum* number of bytes to read. The actual amount may be lower.
         :param flags: A set of socket-specific flags for this operation.
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
@@ -409,6 +426,7 @@ class IoUring:
         count: int | None = None,
         buffer_offset: int | None = None,
         flags: int = 0,
+        *,
         sqe_flags: int | None = None,
     ) -> int:
         """
@@ -434,6 +452,7 @@ class IoUring:
             The offset within the buffer to start writing from. This defaults to the first byte
             of the buffer, and cannot be beyond the end of the buffer.
 
+        :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
         """
 
