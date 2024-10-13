@@ -4,7 +4,6 @@ import socket
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from os import PathLike
-from weakref import ref
 
 import attr
 
@@ -37,19 +36,14 @@ class IoUring:
     Wraps the Rust-level ``io_uring`` object.
     """
 
-    # this is a weakref so that when the context manager goes out of scope, the io_uring is
-    # dropped and we no longer need to care.
-    _the_ring: ref[TheIoRing] = attr.field(alias="_the_ring")  # pyright fix
+    _the_ring: TheIoRing = attr.field(alias="_the_ring")
 
     def submit(self) -> int:
         """
         Submits all outstanding entries in the current submission queue.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
-        return ring.submit()
+        return self._the_ring.submit()
 
     def submit_and_wait(self, count: int = 1) -> int:
         """
@@ -58,20 +52,14 @@ class IoUring:
         :param count: The number of completions to wait for.
         """
 
-        if not (ring := self._the_ring()):
-            raise RuntimeError("The ring is closed")
-
-        return ring.wait(count)
+        return self._the_ring.wait(count)
 
     def get_completion_entries(self) -> list[CompletionEvent]:
         """
         Gets a list of completion entries from the completion queue.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
-        return ring.get_completion_entries()
+        return self._the_ring.get_completion_entries()
 
     def register_eventfd(self, event_fd: int | None = None) -> int:
         """
@@ -95,13 +83,10 @@ class IoUring:
             up and check the completion queue of the ioring.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         if event_fd is None:
             event_fd = os.eventfd(0, os.EFD_CLOEXEC | os.EFD_NONBLOCK)
 
-        ring.register_eventfd(event_fd)
+        self._the_ring.register_eventfd(event_fd)
         return event_fd
 
     # actual methods
@@ -154,18 +139,15 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         dirfd = relative_to if relative_to is not None else -1
         raw_flags = enum_flags_to_int_flags(flags) if flags else os.O_CLOEXEC
-        user_data = ring.get_next_user_data()
+        user_data = self._the_ring.get_next_user_data()
 
         raw_flags |= open_mode.value
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
         _RUSTFFI_ioring_prep_openat(
-            ring, dirfd, os.fsencode(path), user_data, raw_flags, permissions, sqe_flags
+            self._the_ring, dirfd, os.fsencode(path), user_data, raw_flags, permissions, sqe_flags
         )
         return user_data
 
@@ -178,13 +160,10 @@ class IoUring:
         :param sqe_flags: See :func:`.make_uring_flags`.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
-        user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_close(ring, fd, user_data, sqe_flags)
+        user_data = self._the_ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_close(self._the_ring, fd, user_data, sqe_flags)
         return user_data
 
     def prep_read(
@@ -210,15 +189,12 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         if offset < 0 and offset < -1:
             raise ValueError("Can't pass negative offset", offset, "for this operation")
 
         sqe_flags = sqe_flags if sqe_flags is not None else 0
-        user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_read(ring, fd, byte_count, offset, user_data, sqe_flags)
+        user_data = self._the_ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_read(self._the_ring, fd, byte_count, offset, user_data, sqe_flags)
         return user_data
 
     def prep_write(
@@ -266,19 +242,16 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         if file_offset < -1:
             raise ValueError("Can't pass negative offset", file_offset, "for this operation")
 
         size = count if count is not None else len(buffer)
         buffer_offset = buffer_offset if buffer_offset is not None else 0
 
-        user_data = ring.get_next_user_data()
+        user_data = self._the_ring.get_next_user_data()
         sqe_flags = sqe_flags if sqe_flags is not None else 0
         _RUSTFFI_ioring_prep_write(
-            ring, fd, buffer, size, buffer_offset, file_offset, user_data, sqe_flags
+            self._the_ring, fd, buffer, size, buffer_offset, file_offset, user_data, sqe_flags
         )
         return user_data
 
@@ -324,10 +297,7 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
-        user_data = ring.get_next_user_data()
+        user_data = self._the_ring.get_next_user_data()
         type |= socket.SOCK_CLOEXEC
 
         if nonblocking:
@@ -335,7 +305,9 @@ class IoUring:
 
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
-        _RUSTFFI_ioring_prep_create_socket(ring, domain, type, protocol, user_data, sqe_flags)
+        _RUSTFFI_ioring_prep_create_socket(
+            self._the_ring, domain, type, protocol, user_data, sqe_flags
+        )
         return user_data
 
     def prep_connect_v4(
@@ -362,13 +334,12 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
-        user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_connect_v4(ring, fd, str(address), port, user_data, sqe_flags)
+        user_data = self._the_ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_connect_v4(
+            self._the_ring, fd, str(address), port, user_data, sqe_flags
+        )
         return user_data
 
     def prep_connect_v6(
@@ -389,13 +360,12 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
-        user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_connect_v6(ring, fd, str(address), port, user_data, sqe_flags)
+        user_data = self._the_ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_connect_v6(
+            self._the_ring, fd, str(address), port, user_data, sqe_flags
+        )
         return user_data
 
     def prep_recv(
@@ -411,12 +381,9 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         sqe_flags = sqe_flags if sqe_flags is not None else 0
-        user_data = ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_recv(ring, fd, byte_count, flags, user_data, sqe_flags)
+        user_data = self._the_ring.get_next_user_data()
+        _RUSTFFI_ioring_prep_recv(self._the_ring, fd, byte_count, flags, user_data, sqe_flags)
         return user_data
 
     def prep_send(
@@ -456,17 +423,14 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        if not (ring := self._the_ring()):  # pragma: no cover
-            raise RuntimeError("The ring is closed")
-
         size = count if count is not None else len(buffer)
         buffer_offset = buffer_offset if buffer_offset is not None else 0
 
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
-        user_data = ring.get_next_user_data()
+        user_data = self._the_ring.get_next_user_data()
         _RUSTFFI_ioring_prep_send(
-            ring, fd, buffer, size, buffer_offset, flags, user_data, sqe_flags
+            self._the_ring, fd, buffer, size, buffer_offset, flags, user_data, sqe_flags
         )
         return user_data
 
@@ -525,4 +489,7 @@ def make_io_ring(
     sqpoll_idle_ms = sqpoll_idle_ms if (sqpoll_idle_ms and sqpoll_idle_ms > 0) else 0
 
     ring = _RUSTFFI_create_io_ring(entries, cq_size, sqpoll_idle_ms, single_issuer, autosubmit)
-    yield IoUring(_the_ring=ref(ring))
+    try:
+        yield IoUring(_the_ring=ring)
+    finally:
+        ring.close()

@@ -36,7 +36,7 @@ impl CompletionEvent {
 
 #[pyclass(weakref)]
 pub struct TheIoRing {
-    pub(crate) the_io_uring: io_uring::IoUring,
+    pub(crate) the_io_uring: Option<io_uring::IoUring>,
     pub(crate) probe: io_uring::Probe,
 
     user_data_counter: AtomicU64,
@@ -63,14 +63,18 @@ impl TheIoRing {
     }
 
     pub fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
+        let Some(ring) = &mut self.the_io_uring else {
+            return Err(PyValueError::new_err("The ring is closed"));
+        };
+
         let mut needs_submit = false;
 
         loop {
             if needs_submit {
-                self.the_io_uring.submit()?;
+                ring.submit()?;
             }
 
-            let result = unsafe { self.the_io_uring.submission().push(entry) };
+            let result = unsafe { ring.submission().push(entry) };
             if result.is_err() {
                 if needs_submit || !self.autosubmit {
                     return Err(PyValueError::new_err(
@@ -96,29 +100,39 @@ impl TheIoRing {
     }
 
     pub fn submit(&mut self) -> PyResult<usize> {
-        let res = self.the_io_uring.submit()?;
-        return Ok(res);
+        if let Some(ring) = &self.the_io_uring {
+            return Ok(ring.submit()?);
+        }
+
+        return Err(PyValueError::new_err("The ring is closed"));
     }
 
     pub fn wait(&mut self, py: Python<'_>, want: usize) -> PyResult<usize> {
-        let result = py.allow_threads(|| Ok(self.the_io_uring.submit_and_wait(want)?));
-        return result;
+        if let Some(ring) = &self.the_io_uring {
+            let result = py.allow_threads(|| Ok(ring.submit_and_wait(want)?));
+            return result;
+        }
+
+        return Err(PyValueError::new_err("The ring is closed"));
     }
 
     pub fn get_completion_entries(&mut self) -> PyResult<Vec<CompletionEvent>> {
         let mut entries = Vec::<Entry>::new();
+        let Some(ring) = &mut self.the_io_uring else {
+            return Err(PyValueError::new_err("The ring is closed"));
+        };
 
         // arcane borrow checker incantations, because completion() returns an entirely new object
         // that actually points to
         loop {
-            let completion = self.the_io_uring.completion();
+            let completion = ring.completion();
 
             if completion.is_empty() {
                 break;
             }
             entries.extend(completion);
 
-            self.the_io_uring.completion().sync();
+            ring.completion().sync();
         }
 
         let completed_results: Vec<CompletionEvent> = entries
@@ -148,7 +162,15 @@ impl TheIoRing {
     }
 
     pub fn register_eventfd(&mut self, event_fd: RawFd) -> PyResult<()> {
-        self.the_io_uring.submitter().register_eventfd(event_fd)?;
+        let Some(ring) = &mut self.the_io_uring else {
+            return Err(PyValueError::new_err("The ring is closed"));
+        };
+        ring.submitter().register_eventfd(event_fd)?;
+        return Ok(());
+    }
+
+    pub fn close(&mut self) -> PyResult<()> {
+        self.the_io_uring = None;
         return Ok(());
     }
 }
@@ -217,7 +239,7 @@ pub fn create_io_ring(
         ring.submitter().register_probe(&mut probe)?;
 
         let our_ring = TheIoRing {
-            the_io_uring: ring,
+            the_io_uring: Some(ring),
             probe,
             user_data_counter: AtomicU64::new(0),
             autosubmit,

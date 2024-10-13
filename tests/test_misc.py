@@ -1,5 +1,6 @@
 import errno
 import os
+import sys
 
 import pytest
 
@@ -54,7 +55,7 @@ def test_closing() -> None:
             os.read(r, 1234)
 
 
-def test_error() -> None:
+def test_raise_for_cqe() -> None:
     with make_io_ring() as ring:
         ring.prep_openat(None, b"/dev/definitely-does-not-exist", FileOpenMode.READ_ONLY)
         ring.submit_and_wait(1)
@@ -64,3 +65,13 @@ def test_error() -> None:
             raise_for_cqe(cqe)
 
         assert e.value.errno == errno.ENOENT
+
+
+def test_ring_closed() -> None:
+    with make_io_ring() as ring:
+        pass
+
+    with pytest.raises(ValueError) as e:
+        ring.prep_close(sys.stderr.fileno())
+
+    assert e.match("The ring is closed")
