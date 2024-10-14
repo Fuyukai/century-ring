@@ -34,6 +34,14 @@ impl CompletionEvent {
     }
 }
 
+#[allow(dead_code)]
+pub enum OwnedData {
+    OnePath(Vec<u8>),
+    TwoPaths(Vec<u8>, Vec<u8>),
+    Buffer(Vec<u8>),
+    SockAddr(Box<dyn SockaddrLike + Send>),
+}
+
 #[pyclass(weakref)]
 pub struct TheIoRing {
     pub(crate) the_io_uring: Option<io_uring::IoUring>,
@@ -42,24 +50,23 @@ pub struct TheIoRing {
     user_data_counter: AtomicU64,
     autosubmit: bool,
 
-    owned_paths: HashMap<u64, Vec<u8>>,
-    owned_buffers: HashMap<u64, Vec<u8>>,
-    owned_sockaddrs: HashMap<u64, Box<dyn SockaddrLike + Send>>,
+    owned_data: HashMap<u64, OwnedData>,
 }
 
 // non-python methods
 impl TheIoRing {
-    pub fn add_owned_path(&mut self, user_data: u64, path: Vec<u8>) -> &Vec<u8> {
-        self.owned_paths.insert(user_data, path);
-        return self.owned_paths.get(&user_data).unwrap();
+    pub fn add_owned_path(&mut self, user_data: u64, path: Vec<u8>) {
+        let data = OwnedData::OnePath(path);
+        self.owned_data.insert(user_data, data);
     }
 
     pub fn add_owned_buffer(&mut self, user_data: u64, buf: Vec<u8>) {
-        self.owned_buffers.insert(user_data, buf);
+        let data = OwnedData::Buffer(buf);
+        self.owned_data.insert(user_data, data);
     }
 
     pub fn add_owned_sockaddr(&mut self, user_data: u64, addr: Box<dyn SockaddrLike + Send>) {
-        self.owned_sockaddrs.insert(user_data, addr);
+        self.owned_data.insert(user_data, OwnedData::SockAddr(addr));
     }
 
     pub fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
@@ -138,17 +145,19 @@ impl TheIoRing {
         let completed_results: Vec<CompletionEvent> = entries
             .iter()
             .map(|e| {
-                // move out our owned buffer into the struct to let python deal with it
-                let buffer = self.owned_buffers.remove(&e.user_data()).map(|mut buf| {
-                    if e.result() < 0 || buf.len() == (e.result() as usize) {
-                        return buf;
+                let buffer = self.owned_data.remove(&e.user_data()).and_then(|owned| {
+                    match owned {
+                        OwnedData::Buffer(mut buf) => {
+                            if e.result() < 0 || buf.len() == (e.result() as usize) {
+                                return Some(buf);
+                            }
+        
+                            buf.resize(e.result() as usize, 0);
+                            return Some(buf);
+                        }
+                        _ => { return None; }
                     }
-
-                    buf.resize(e.result() as usize, 0);
-                    return buf;
                 });
-                drop(self.owned_paths.remove(&e.user_data()));
-                self.owned_sockaddrs.remove(&e.user_data());
 
                 return CompletionEvent {
                     user_data: e.user_data(),
@@ -243,9 +252,7 @@ pub fn create_io_ring(
             probe,
             user_data_counter: AtomicU64::new(0),
             autosubmit,
-            owned_paths: HashMap::new(),
-            owned_buffers: HashMap::new(),
-            owned_sockaddrs: HashMap::new(),
+            owned_data: HashMap::new(),
         };
 
         return Ok(our_ring);
