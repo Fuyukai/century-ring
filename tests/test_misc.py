@@ -1,6 +1,7 @@
 import errno
 import os
 import sys
+import time
 
 import pytest
 
@@ -75,3 +76,48 @@ def test_ring_closed() -> None:
         ring.prep_close(sys.stderr.fileno())
 
     assert e.match("The ring is closed")
+
+
+def test_empty_timeout() -> None:
+    with make_io_ring() as ring:
+        before = time.monotonic()
+        assert ring.submit_and_wait_with_timeout(seconds=1) == 0
+        after = time.monotonic()
+        assert after - before >= 1.0
+
+
+def test_real_timeout() -> None:
+    with make_io_ring() as ring:
+        ring.prep_openat(None, b"/dev/zero", FileOpenMode.READ_ONLY)
+        before = time.monotonic()
+        assert ring.submit_and_wait_with_timeout(seconds=1) == 1
+        after = time.monotonic()
+
+        assert (after - before) < 1.0
+        # make sure no extra SQE got posted for the timeout event
+        result = ring.get_completion_entries()
+        assert len(result) == 1
+        os.close(result[0].result)
+
+
+def test_multiple_timeouts_ignoring_completions() -> None:
+    # make sure that submitting with timeouts doesn't work until we actually reap the completion
+    # queue.
+    with make_io_ring() as ring:
+        ring.prep_openat(None, b"/dev/zero", FileOpenMode.READ_ONLY)
+
+        before = time.monotonic()
+        for _ in range(10):
+            ring.submit_and_wait_with_timeout(seconds=1)
+
+        after = time.monotonic()
+        assert (after - before) < 5
+
+        result = ring.get_completion_entries()
+        assert len(result) == 1
+        os.close(result[0].result)
+
+        before = time.monotonic()
+        ring.submit_and_wait_with_timeout(seconds=1)
+        after = time.monotonic()
+        assert (after - before) >= 1.0

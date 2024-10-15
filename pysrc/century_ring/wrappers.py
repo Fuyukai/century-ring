@@ -54,9 +54,30 @@ class IoUring:
 
         return self._the_ring.wait(count)
 
+    def submit_and_wait_with_timeout(self, seconds: int, nsec: int = 0) -> int:
+        """
+        Submits all outstanding entries, and waits for completions with a timeout.
+
+        This internally uses a special ``IORING_OP_TIMEOUT`` submission queue entry with a special
+        ``user_data`` value of 0xFF_FF_FF_00; any completion entry with this value should be
+        ignored.
+
+        :param seconds: The number of seconds to wait for completions.
+        :param nsec: The number of nanoseconds to wait, added onto the value passed for ``seconds``.
+        :return: The number of completion events that became available whilst waiting.
+        """
+
+        return self._the_ring.wait_with_timeout(seconds, nsec)
+
     def get_completion_entries(self) -> list[CompletionEvent]:
         """
         Gets a list of completion entries from the completion queue.
+
+        .. warning::
+
+            Completion events with ``user_data`` fields that have the top bit set are used for
+            internal state tracking within the extension. Ignore any entries that have this bit
+            set.
         """
 
         return self._the_ring.get_completion_entries()

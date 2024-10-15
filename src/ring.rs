@@ -1,6 +1,6 @@
 use std::{collections::HashMap, os::fd::RawFd, sync::atomic::AtomicU64};
 
-use io_uring::cqueue::Entry;
+use io_uring::{cqueue::Entry, squeue::Flags, types::Timespec};
 use nix::sys::socket::SockaddrLike;
 use pyo3::{
     exceptions::{PyOSError, PyValueError},
@@ -31,6 +31,10 @@ impl CompletionEvent {
     #[getter]
     pub fn buffer(&mut self) -> Option<&[u8]> {
         return self.buffer.as_deref();
+    }
+
+    pub fn should_be_ignored(&self) -> bool {
+        return (self.user_data & (1 << 63)) != 0;
     }
 }
 
@@ -123,6 +127,28 @@ impl TheIoRing {
         return Err(PyValueError::new_err("The ring is closed"));
     }
 
+    pub fn wait_with_timeout(&mut self, py: Python<'_>, sec: u64, nsec: u32) -> PyResult<usize> {
+        let Some(ring) = &mut self.the_io_uring else {
+            return Err(PyValueError::new_err("The ring is closed"));
+        };
+
+        // purge the queue!! don't want to push a timeout op and just have it... not do anything
+        let count = ring.submit()?;
+
+        // playing stack-frame chicken with rust here
+        let timespec = Timespec::new().sec(sec).nsec(nsec);
+        let timeout = io_uring::opcode::Timeout::new(&timespec)
+            .build()
+            .flags(Flags::SKIP_SUCCESS)
+            .user_data(0xFFFF_FF00);
+
+        unsafe { ring.submission().push(&timeout) }
+            .map_err(|_| PyValueError::new_err("Couldn't submit timeout operation"))?;
+
+        py.allow_threads(|| ring.submit_and_wait(1))?;
+        return Ok(count);
+    }
+
     pub fn get_completion_entries(&mut self) -> PyResult<Vec<CompletionEvent>> {
         let mut entries = Vec::<Entry>::new();
         let Some(ring) = &mut self.the_io_uring else {
@@ -145,19 +171,22 @@ impl TheIoRing {
         let completed_results: Vec<CompletionEvent> = entries
             .iter()
             .map(|e| {
-                let buffer = self.owned_data.remove(&e.user_data()).and_then(|owned| {
-                    match owned {
+                let buffer = self
+                    .owned_data
+                    .remove(&e.user_data())
+                    .and_then(|owned| match owned {
                         OwnedData::Buffer(mut buf) => {
                             if e.result() < 0 || buf.len() == (e.result() as usize) {
                                 return Some(buf);
                             }
-        
+
                             buf.resize(e.result() as usize, 0);
                             return Some(buf);
                         }
-                        _ => { return None; }
-                    }
-                });
+                        _ => {
+                            return None;
+                        }
+                    });
 
                 return CompletionEvent {
                     user_data: e.user_data(),

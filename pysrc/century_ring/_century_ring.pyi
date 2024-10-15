@@ -14,6 +14,11 @@ class TheIoRing:
         Submits all pending events, returning the number of events submitted.
         """
 
+    def wait_with_timeout(self, secs: int, nsec: int) -> int:
+        """
+        Submits all pending events, then waits for the specified time.
+        """
+
     def get_completion_entries(self) -> list[CompletionEvent]:
         """
         Gets the list of ready completion events.
