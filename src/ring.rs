@@ -41,7 +41,7 @@ impl CompletionEvent {
 }
 
 #[allow(dead_code)]
-pub enum OwnedData {
+pub(crate) enum OwnedData {
     OnePath(Vec<u8>),
     TwoPaths(Vec<u8>, Vec<u8>),
     Buffer(Vec<u8>),
@@ -165,7 +165,7 @@ impl TheIoRing {
         let timeout = io_uring::opcode::Timeout::new(&timespec)
             .build()
             .flags(Flags::SKIP_SUCCESS)
-            .user_data(0xFFFF_FF00);
+            .user_data(0xFFFF_FFFF_FFFF_FF00);
 
         unsafe { ring.submission().push(&timeout) }
             .map_err(|_| PyValueError::new_err("Couldn't submit timeout operation"))?;
