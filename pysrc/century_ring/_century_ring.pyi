@@ -1,6 +1,14 @@
 class CompletionEvent:
+    """
+    A single completion event returned from the io_uring.
+    """
+
+    #: The system call result for this event. 
     result: int
+    #: The internal user_data field. Not relevant.
     user_data: int
+    #: If this operation had a buffer, either the provided buffer from the application or the 
+    #: allocated buffer (writes and reads, respectively).
     buffer: bytes | None
 
     def should_be_ignored(self) -> bool:
