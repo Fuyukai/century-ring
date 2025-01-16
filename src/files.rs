@@ -6,6 +6,7 @@ use pyo3::{exceptions::PyNotImplementedError, pyfunction, PyResult};
 
 use crate::{ring::TheIoRing, shared::check_write_buffer};
 
+/// Performs an ``openat(2)`` call via io_uring.
 #[pyfunction(name = "_RUSTFFI_ioring_prep_openat")]
 pub fn ioring_prep_openat(
     ring: &mut TheIoRing,
@@ -37,6 +38,7 @@ pub fn ioring_prep_openat(
     return Ok(());
 }
 
+/// Performs a ``read(2)`` call via io_uring.
 #[pyfunction(name = "_RUSTFFI_ioring_prep_read")]
 pub fn ioring_prep_read(
     ring: &mut TheIoRing,
@@ -62,6 +64,7 @@ pub fn ioring_prep_read(
     return Ok(());
 }
 
+/// Performs a ``writw(2)`` call via io_uring.
 #[pyfunction(name = "_RUSTFFI_ioring_prep_write")]
 pub fn ioring_prep_write(
     ring: &mut TheIoRing,

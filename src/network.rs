@@ -11,6 +11,7 @@ use pyo3::PyResult;
 use crate::ring::TheIoRing;
 use crate::shared::check_write_buffer;
 
+/// Performs a ``socket(2)`` call via io_uring.
 #[pyo3::pyfunction(name = "_RUSTFFI_ioring_prep_create_socket")]
 pub fn ioring_prep_create_socket(
     ring: &mut TheIoRing,
@@ -41,7 +42,7 @@ fn do_sockaddr_submit(
     user_data: u64,
     sqe_flags: u8,
 ) -> PyResult<()> {
-    let c_addr: Box<dyn SockaddrLike + Send> = match addr {
+    let c_addr: Box<dyn SockaddrLike + Send + Sync> = match addr {
         SocketAddr::V4(it) => Box::new(nix::sys::socket::SockaddrIn::from(it)),
         SocketAddr::V6(it) => Box::new(nix::sys::socket::SockaddrIn6::from(it)),
     };
@@ -56,6 +57,7 @@ fn do_sockaddr_submit(
     return Ok(());
 }
 
+/// Performs a ``connect(2)`` call via io_uring for AF_INET sockets.
 #[pyo3::pyfunction(name = "_RUSTFFI_ioring_prep_connect_v4")]
 pub fn ioring_prep_connect_v4(
     ring: &mut TheIoRing,
@@ -77,6 +79,7 @@ pub fn ioring_prep_connect_v4(
     return Ok(());
 }
 
+/// Performs a ``connect(2)`` call via io_uring for AF_INET6 sockets.
 #[pyo3::pyfunction(name = "_RUSTFFI_ioring_prep_connect_v6")]
 pub fn ioring_prep_connect_v6(
     ring: &mut TheIoRing,
@@ -98,6 +101,7 @@ pub fn ioring_prep_connect_v6(
     return Ok(());
 }
 
+/// Performs a ``send(2)`` call via io_uring.
 #[pyo3::pyfunction(name = "_RUSTFFI_ioring_prep_send")]
 pub fn ioring_prep_send(
     ring: &mut TheIoRing,
@@ -127,6 +131,7 @@ pub fn ioring_prep_send(
     return Ok(());
 }
 
+/// Performs a ``recv(2)`` call via io_uring.
 #[pyo3::pyfunction(name = "_RUSTFFI_ioring_prep_recv")]
 pub fn ioring_prep_recv(
     ring: &mut TheIoRing,

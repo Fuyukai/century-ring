@@ -9,6 +9,7 @@ use pyo3::{
     Bound, PyResult, Python,
 };
 
+/** A single completion event returned by the io_uring. */
 #[pyclass]
 pub struct CompletionEvent {
     pub user_data: u64,
@@ -18,6 +19,7 @@ pub struct CompletionEvent {
 
 #[pymethods]
 impl CompletionEvent {
+    /** The ``cqe->user_data`` field. Usually set automatically by the ring. */
     #[getter]
     pub fn user_data(&self) -> u64 {
         return self.user_data;
@@ -43,9 +45,15 @@ pub enum OwnedData {
     OnePath(Vec<u8>),
     TwoPaths(Vec<u8>, Vec<u8>),
     Buffer(Vec<u8>),
-    SockAddr(Box<dyn SockaddrLike + Send>),
+    SockAddr(Box<dyn SockaddrLike + Send + Sync>),
 }
 
+/**
+The actual implementation of the io_uring.
+
+This wraps the real io_uring instance as provided by Tokio and owns certain data that would
+otherwise cause UB if it ended up dying.
+*/
 #[pyclass(weakref)]
 pub struct TheIoRing {
     pub(crate) the_io_uring: Option<io_uring::IoUring>,
@@ -59,21 +67,29 @@ pub struct TheIoRing {
 
 // non-python methods
 impl TheIoRing {
-    pub fn add_owned_path(&mut self, user_data: u64, path: Vec<u8>) {
+    /** Adds a new path to this ring's ownership */
+    pub(crate) fn add_owned_path(&mut self, user_data: u64, path: Vec<u8>) {
         let data = OwnedData::OnePath(path);
         self.owned_data.insert(user_data, data);
     }
 
-    pub fn add_owned_buffer(&mut self, user_data: u64, buf: Vec<u8>) {
+    /** Adds a new generic buffer to this ring's ownership. */
+    pub(crate) fn add_owned_buffer(&mut self, user_data: u64, buf: Vec<u8>) {
         let data = OwnedData::Buffer(buf);
         self.owned_data.insert(user_data, data);
     }
 
-    pub fn add_owned_sockaddr(&mut self, user_data: u64, addr: Box<dyn SockaddrLike + Send>) {
+    /** Adds a new socket address to this ring's ownership. */
+    pub(crate) fn add_owned_sockaddr(
+        &mut self,
+        user_data: u64,
+        addr: Box<dyn SockaddrLike + Send + Sync>,
+    ) {
         self.owned_data.insert(user_data, OwnedData::SockAddr(addr));
     }
 
-    pub fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
+    /** Submits a single entry to the queue, automatically submitting if the queue is full. */
+    pub(crate) fn autosubmit(&mut self, entry: &io_uring::squeue::Entry) -> PyResult<()> {
         let Some(ring) = &mut self.the_io_uring else {
             return Err(PyValueError::new_err("The ring is closed"));
         };
@@ -85,18 +101,20 @@ impl TheIoRing {
                 ring.submit()?;
             }
 
-            let result = unsafe { ring.submission().push(entry) };
-            if result.is_err() {
-                if needs_submit || !self.autosubmit {
+            match unsafe { ring.submission().push(entry) } {
+                Ok(_) => {
+                    return Ok(());
+                }
+                Err(_) if (needs_submit || !self.autosubmit) => {
                     return Err(PyValueError::new_err(
                         "submission queue is full and submitting didn't help!",
                     ));
-                } else {
+                }
+                Err(_) => {
                     needs_submit = true;
                     continue;
                 }
             }
-            return Ok(());
         }
     }
 }
@@ -104,12 +122,17 @@ impl TheIoRing {
 // exposed python methods
 #[pymethods]
 impl TheIoRing {
+    /// Gets the next "user data" value.
+    ///
+    /// This is an atomic counter used to associate submission queue and completion queue entries
+    /// together.
     pub fn get_next_user_data(&mut self) -> u64 {
         return self
             .user_data_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Submits the queue and returns immediately.
     pub fn submit(&mut self) -> PyResult<usize> {
         if let Some(ring) = &self.the_io_uring {
             return Ok(ring.submit()?);
@@ -118,6 +141,7 @@ impl TheIoRing {
         return Err(PyValueError::new_err("The ring is closed"));
     }
 
+    /// Submits the queue and waits for ``want`` completion queues to arrive.
     pub fn wait(&mut self, py: Python<'_>, want: usize) -> PyResult<usize> {
         if let Some(ring) = &self.the_io_uring {
             let result = py.allow_threads(|| Ok(ring.submit_and_wait(want)?));
@@ -127,6 +151,7 @@ impl TheIoRing {
         return Err(PyValueError::new_err("The ring is closed"));
     }
 
+    /// Submits the queue and waits for a single completion queue entry with the specified timeout.
     pub fn wait_with_timeout(&mut self, py: Python<'_>, sec: u64, nsec: u32) -> PyResult<usize> {
         let Some(ring) = &mut self.the_io_uring else {
             return Err(PyValueError::new_err("The ring is closed"));
@@ -149,6 +174,7 @@ impl TheIoRing {
         return Ok(count);
     }
 
+    /// Gets the list of completion entries from the ring, if there are any to process.
     pub fn get_completion_entries(&mut self) -> PyResult<Vec<CompletionEvent>> {
         let mut entries = Vec::<Entry>::new();
         let Some(ring) = &mut self.the_io_uring else {
@@ -156,7 +182,7 @@ impl TheIoRing {
         };
 
         // arcane borrow checker incantations, because completion() returns an entirely new object
-        // that actually points to
+        // that actually points to the underlying ring
         loop {
             let completion = ring.completion();
 
@@ -168,37 +194,37 @@ impl TheIoRing {
             ring.completion().sync();
         }
 
-        let completed_results: Vec<CompletionEvent> = entries
-            .iter()
-            .map(|e| {
-                let buffer = self
-                    .owned_data
-                    .remove(&e.user_data())
-                    .and_then(|owned| match owned {
-                        OwnedData::Buffer(mut buf) => {
-                            if e.result() < 0 || buf.len() == (e.result() as usize) {
-                                return Some(buf);
-                            }
+        let mut completed_results: Vec<CompletionEvent> = Vec::with_capacity(entries.capacity());
 
-                            buf.resize(e.result() as usize, 0);
+        for entry in entries {
+            let buffer = self
+                .owned_data
+                .remove(&entry.user_data())
+                .and_then(|owned| match owned {
+                    OwnedData::Buffer(mut buf) => {
+                        if entry.result() < 0 || buf.len() == (entry.result() as usize) {
                             return Some(buf);
                         }
-                        _ => {
-                            return None;
-                        }
-                    });
 
-                return CompletionEvent {
-                    user_data: e.user_data(),
-                    result: e.result(),
-                    buffer,
-                };
-            })
-            .collect();
+                        buf.resize(entry.result() as usize, 0);
+                        return Some(buf);
+                    }
+                    _ => {
+                        return None;
+                    }
+                });
+
+            completed_results.push(CompletionEvent {
+                user_data: entry.user_data(),
+                result: entry.result(),
+                buffer,
+            });
+        }
 
         return Ok(completed_results);
     }
 
+    /// Registers an ``eventfd(2)`` that will be notified when the ring has new completion events.
     pub fn register_eventfd(&mut self, event_fd: RawFd) -> PyResult<()> {
         let Some(ring) = &mut self.the_io_uring else {
             return Err(PyValueError::new_err("The ring is closed"));
@@ -207,6 +233,7 @@ impl TheIoRing {
         return Ok(());
     }
 
+    /// Closes the io_uring. Don't do this when things are still processing.
     pub fn close(&mut self) -> PyResult<()> {
         self.the_io_uring = None;
         return Ok(());

@@ -3,6 +3,11 @@ class CompletionEvent:
     user_data: int
     buffer: bytes | None
 
+    def should_be_ignored(self) -> bool:
+        """
+        If True, this is a special completion event that should be ignored by user code.
+        """
+
 class TheIoRing:
     def wait(self, count: int) -> int:
         """

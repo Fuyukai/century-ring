@@ -32,6 +32,7 @@ pub(crate) fn check_write_buffer(buf: &[u8], size: usize, offset: usize) -> PyRe
     return Ok(end_offset);
 }
 
+/// Performs a ``close(2)`` call using io_uring.
 #[pyfunction(name = "_RUSTFFI_ioring_prep_close")]
 pub fn ioring_prep_close(
     ring: &mut TheIoRing,
