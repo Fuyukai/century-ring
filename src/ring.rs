@@ -174,6 +174,15 @@ impl TheIoRing {
         return Ok(count);
     }
 
+    /// Gets the number of pending entries in the submission queue.
+    pub fn pending_sq_entries(&mut self) -> PyResult<usize> {
+        let Some(ring) = &mut self.the_io_uring else {
+            return Err(PyValueError::new_err("The ring is closed"));
+        };
+
+        return Ok(ring.submission().len());
+    }
+
     /// Gets the list of completion entries from the ring, if there are any to process.
     pub fn get_completion_entries(&mut self) -> PyResult<Vec<CompletionEvent>> {
         let mut entries = Vec::<Entry>::new();

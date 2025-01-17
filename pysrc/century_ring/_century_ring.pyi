@@ -32,6 +32,11 @@ class TheIoRing:
         Submits all pending events, then waits for the specified time.
         """
 
+    def pending_sq_entries(self) -> int:
+        """
+        Gets the number of pending submission queue entries.
+        """
+
     def get_completion_entries(self) -> list[CompletionEvent]:
         """
         Gets the list of ready completion events.

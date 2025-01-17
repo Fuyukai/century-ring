@@ -38,6 +38,14 @@ class IoUring:
 
     _the_ring: TheIoRing = attr.field(alias="_the_ring")
 
+    @property
+    def pending_sq_entries(self) -> int:
+        """
+        Gets the number of pending submission queue entries.
+        """
+
+        return self._the_ring.pending_sq_entries()
+
     def submit(self) -> int:
         """
         Submits all outstanding entries in the current submission queue.

@@ -121,3 +121,10 @@ def test_multiple_timeouts_ignoring_completions() -> None:
         ring.submit_and_wait_with_timeout(seconds=1)
         after = time.monotonic()
         assert (after - before) >= 1.0
+
+
+def test_pending_sq_entries() -> None:
+    with make_io_ring() as ring:
+        ring.prep_openat(None, b"/dev/zero", FileOpenMode.READ_ONLY)
+        
+        assert ring.pending_sq_entries == 1
