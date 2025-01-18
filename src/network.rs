@@ -5,7 +5,7 @@ use std::{net::IpAddr, os::fd::RawFd};
 use io_uring::squeue::Flags;
 use io_uring::types::Fd;
 use nix::sys::socket::SockaddrLike;
-use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::PyResult;
 
 use crate::ring::TheIoRing;
@@ -47,9 +47,16 @@ fn do_sockaddr_submit(
         SocketAddr::V6(it) => Box::new(nix::sys::socket::SockaddrIn6::from(it)),
     };
 
+    let flags = Flags::from_bits_truncate(sqe_flags);
+    if flags.contains(Flags::SKIP_SUCCESS) {
+        return Err(PyValueError::new_err(
+            "Can't use 'SKIP_SUCCESS' on submissions with owned data",
+        ));
+    }
+
     let entry = io_uring::opcode::Connect::new(Fd(fd), c_addr.as_ptr(), c_addr.len())
         .build()
-        .flags(Flags::from_bits_truncate(sqe_flags))
+        .flags(flags)
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;
@@ -117,12 +124,19 @@ pub fn ioring_prep_send(
         return Err(PyNotImplementedError::new_err("send"));
     }
 
+    let parsed_sqe_flags = Flags::from_bits_truncate(sqe_flags);
+    if parsed_sqe_flags.contains(Flags::SKIP_SUCCESS) {
+        return Err(PyValueError::new_err(
+            "Can't use 'SKIP_SUCCESS' on submissions with owned data",
+        ));
+    }
+
     let end_offset = check_write_buffer(data, size, buffer_offset)?;
     let vec = data[buffer_offset..end_offset].to_vec();
     let entry = io_uring::opcode::Send::new(Fd(fd), vec.as_ptr(), vec.len() as u32)
         .flags(flags)
         .build()
-        .flags(Flags::from_bits_truncate(sqe_flags))
+        .flags(parsed_sqe_flags)
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;
@@ -144,12 +158,19 @@ pub fn ioring_prep_recv(
     if !ring.probe.is_supported(io_uring::opcode::Recv::CODE) {
         return Err(PyNotImplementedError::new_err("recv"));
     }
+    
+    let parsed_sqe_flags = Flags::from_bits_truncate(sqe_flags);
+    if parsed_sqe_flags.contains(Flags::SKIP_SUCCESS) {
+        return Err(PyValueError::new_err(
+            "Can't use 'SKIP_SUCCESS' on submissions with owned data",
+        ));
+    }
 
     let mut buf: Vec<u8> = vec![0; max_size as usize];
     let entry = io_uring::opcode::Recv::new(Fd(fd), buf.as_mut_ptr(), max_size)
         .flags(flags)
         .build()
-        .flags(Flags::from_bits_truncate(sqe_flags))
+        .flags(parsed_sqe_flags)
         .user_data(user_data);
 
     ring.autosubmit(&entry)?;

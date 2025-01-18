@@ -8,6 +8,7 @@ use pyo3::{
 
 use crate::ring::TheIoRing;
 
+/** Checks if the argument for a writing buffer are valid or not. */
 pub(crate) fn check_write_buffer(buf: &[u8], size: usize, offset: usize) -> PyResult<usize> {
     if size > buf.len() {
         let message = format!("can't write {} bytes from a vec of {}", size, buf.len());

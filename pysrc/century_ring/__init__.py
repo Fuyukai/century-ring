@@ -21,7 +21,7 @@ def raise_for_cqe(cqe: CompletionEvent) -> None:
         raise err
 
 
-def make_uring_flags(
+def make_sqe_flags(
     fixed_file: bool = False,
     io_drain: bool = False,
     io_link: bool = False,
@@ -69,7 +69,13 @@ def make_uring_flags(
         first. This is useful for when the programmer knows that issuing a non-blocking operation
         will inevitably fail, and can improve performance.
 
-    :param skip_success: No completion queue entry will be created if this operation is successful.
+    :param skip_success: 
+
+        No completion queue entry will be created if this operation is successful.
+
+        For safety reasons, passing this will fail on any operation that uses a non-trivial argument
+        such as a bytestring or a buffer. This restriction may be relaxed in the future.
+
     :return: An opaque integer bitfield of flags that can be used for a submission queue entry.
     """
 
