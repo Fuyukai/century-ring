@@ -1,3 +1,6 @@
+import os
+import random
+import secrets
 import sys
 
 import pytest
@@ -72,6 +75,44 @@ def test_write_and_read():
         assert len(buffer) == 4
         assert buffer == b"wow!"
 
+
+def test_writing_with_offset():
+    buffer = secrets.token_hex(128).encode("utf-8")
+    offset = random.randint(0, len(buffer) // 2)
+    count = len(buffer) - offset
+
+    with make_io_ring() as ring, AutoclosingScope() as scope:
+        fd = os.open(b"/tmp", os.O_RDWR | os.O_TMPFILE)
+        scope.fds.append(fd)
+
+        ring.prep_write(fd, buffer, buffer_offset=offset, count=count)
+        ring.submit_and_wait()
+        raise_for_cqe(ring.get_completion_entries()[0])
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        data = os.read(fd, count)
+        assert data == buffer[offset:]
+
+
+def test_writing_with_file_offset():
+    buffer = secrets.token_hex(32).encode("utf-8")
+
+    with make_io_ring() as ring, AutoclosingScope() as scope:
+        fd = os.open(b"/tmp", os.O_RDWR | os.O_TMPFILE)
+        scope.fds.append(fd)
+
+        ring.prep_write(fd, buffer)
+        ring.submit_and_wait()
+        raise_for_cqe(ring.get_completion_entries()[0])
+
+        ring.prep_write(fd, buffer, 32)
+        ring.submit_and_wait()
+        raise_for_cqe(ring.get_completion_entries()[0])
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        data = os.read(fd, 96)
+
+        assert data == buffer[0:32] + buffer
 
 def test_invalid_writes():
     with make_io_ring() as ring:
