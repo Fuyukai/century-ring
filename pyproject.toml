@@ -11,7 +11,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 readme = "README.rst"
-license = "LGPL-3.0-or-later"
+license = "GPL-3.0-or-later"
 version = "25.0.0"
 dependencies = ["attrs>=24.3.0"]
 
@@ -83,3 +83,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.esbonio.sphinx]
+#pythonCommand = ["/home/lura/dev/libs/century-ring/.venv/bin/python3"]
+pythonCommand = ["${venv:/home/lura/dev/libs/century-ring/.venv}"]
