@@ -49,6 +49,8 @@ class IoUring:
     def submit(self) -> int:
         """
         Submits all outstanding entries in the current submission queue.
+
+        :return: The number of events successfully submitted.
         """
 
         return self._the_ring.submit()
@@ -58,6 +60,7 @@ class IoUring:
         Submits all outstanding entries in the current submission queue, and waits for completions.
 
         :param count: The number of completions to wait for.
+        :return: The number of events successfully submitted.
         """
 
         return self._the_ring.wait(count)
@@ -72,7 +75,7 @@ class IoUring:
 
         :param seconds: The number of seconds to wait for completions.
         :param nsec: The number of nanoseconds to wait, added onto the value passed for ``seconds``.
-        :return: The number of completion events that became available whilst waiting.
+        :return: The number of events successfully submitted.
         """
 
         return self._the_ring.wait_with_timeout(seconds, nsec)
@@ -80,12 +83,6 @@ class IoUring:
     def get_completion_entries(self) -> list[CompletionEvent]:
         """
         Gets a list of completion entries from the completion queue.
-
-        .. warning::
-
-            Completion events with ``user_data`` fields that have the top bit set are used for
-            internal state tracking within the extension. Ignore any entries that have this bit
-            set.
         """
 
         return self._the_ring.get_completion_entries()
@@ -99,10 +96,9 @@ class IoUring:
         This allows integrating the ``io_uring`` event loop into a more traditional
         select/poll-based event loop without requiring additional code.
 
-        :param event_fd:
+        :param event_fd: The actual eventfd to register, typically returned from :func:`os.eventfd`.
 
-            The actual eventfd to register, typically returned from :func:`os.eventfd`. If this is
-            None, then an eventfd will be created with sane flags.
+            If this is None, then an eventfd will be created with sane flags for you.
 
         :return: The ``event_fd`` passed in, or one created by this function.
 
@@ -134,35 +130,28 @@ class IoUring:
         The completion queue event for this submission will have the file descriptor stored in the
         result field.
 
-        :param relative_to:
+        :param relative_to: The fd of a directory to open this file relative to.
 
-            A file descriptor that signifies the directory that this file should be opened relative
-            to. If this is the special constant ``AT_FDCWD``, then this file will be opened relative
-            to the current working directory. If this is ``-1``, then this parameter will be ignored
-            and the path should be an absolute path.
+            If this is the special constant ``AT_FDCWD``, then this file will be opened relative
+            to the current working directory. If this is ``-1`` or ``None``, then this parameter 
+            will be ignored and the path should be an absolute path.
 
-        :param path:
-
-            The bytes-encoded path to open.
+        :param path: The bytes-encoded path to open.
 
             If this path is a relative path, the behaviour of how this file is looked up depends on
             the behaviour of the ``relative_to`` parameter. Otherwise, ``relative_to`` is ignored.
 
-        :param open_mode:
+        :param open_mode: The mode to open a file in, e.g. read-only or write-only.
+        :param flags: The file open flags to use. 
 
-            The mode to open a file in, e.g. read-only or write-only.
+            This differs from the traditional ``fopen`` flags that Python uses and should 
+            be a set of constants from the :class:`.FileOpenMode` enumeration.
 
-        :param flags:
+        :param permissions: The permissions that the file will be opened with.
 
-            The file open flags to use. This differs from the traditional ``fopen`` flags that
-            Python uses and should be a set of constants from the :class:`.FileOpenMode`
-            enumeration.
-
-        :param permissions:
-
-            The permissions that the file will be opened with. This is masked off by the current
-            umask; for example, if a user's umask is ``0o022`` and ``mode`` is the value ``0o666``
-            (the default value), then the final file will be created with ``0o644`` permissions.
+            This is masked off by the current umask; for example, if a user's umask is 
+            ``0o022`` and ``mode`` is the value ``0o666`` (the default value), then the final 
+            file will be created with ``0o644`` permissions.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
@@ -206,12 +195,10 @@ class IoUring:
 
         :param fd: The file descriptor to read the data from.
         :param byte_count: The *maximum* number of bytes to read. The actual amount may be lower.
-        :param offset:
+        :param offset: The offset within the file to read from. 
 
-            The offset within the file to read from. If this is a positive integer, this is an
-            absolute offset within the file to read from.
-
-            If this is the constant ``-1``, then this will read from the current file's seek
+            If this is a positive integer, this is an absolute offset within the file to read from. 
+            If this is the constant ``-1``, then this will read from the current file's seek 
             position.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
@@ -244,28 +231,25 @@ class IoUring:
         purposes. The byte count may be less than the count requested.
 
         :param fd: The file descriptor to write the data to.
-        :param buffer:
+        :param buffer: The bytestring or bytearray to send.
 
-            The data buffer to read from. This will be copied into the Rust function's memory,
-            so for large buffers this will use more memory.
+            This is copied into the Rust-side code before submission; large buffer sizes will cause
+            excessive memory usage. 
 
-        :param offset:
-
-            The offset within the file to write at. If this is a positive integer, this is an
-            absolute offset within the file to write at.
-
-            If this is the constant ``-1``, then this will write at the current file's seek
+        :param file_offset: The offset within the file to write at. 
+        
+            If this is a positive integer, this is an absolute offset within the file to write at.
+            If this is the constant ``-1``, then this will write at the current file's seek 
             position.
 
-        :param count:
+        :param count: The number of bytes to write from the provided buffer.
 
-            The number of bytes to write from the provided buffer. This defaults to the size of
-            the buffer, and cannot be larger than the buffer.
+            This defaults to the size of the buffer, and cannot be larger than the buffer.
 
-        :param buffer_offset:
+        :param buffer_offset: The offset within the buffer to start writing from.
 
-            The offset within the buffer to start writing from. This defaults to the first byte
-            of the buffer, and cannot be beyond the end of the buffer.
+            This defaults to the first byte of the buffer, and cannot be beyond the end of the 
+            buffer.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
@@ -296,29 +280,21 @@ class IoUring:
         """
         Prepares a socket(2) call. See the relevant man page for more information.
 
-        :param domain:
-
-            The "domain" (better known as protocol family) for this socket.
+        :param domain: The "domain" (better known as protocol family) for this socket.
 
             In nearly all cases, this will be :attr:`socket.AF_INET` or :attr:`socket.AF_INET6`.
 
-        :param type:
-
-            The type for this socket.
+        :param type: The type for this socket.
 
             In nearly all cases, this will be :attr:`socket.SOCK_STREAM` or
             :attr:`socket.SOCK_DGRAM`.
 
-        :param protocol:
-
-            The protocol that this socket will carry.
+        :param protocol: The protocol that this socket will carry.
 
             This should match the value passed for ``type``, i.e. don't pass
             :attr:`socket.IPPROTO_UDP` for a ``SOCK_STREAM`` socket.
 
-        :param nonblocking:
-
-            If true, then this socket will be created as a non-blocking socket.
+        :param nonblocking: If true, then this socket will be created as a non-blocking socket.
 
             This saves an extra call to fcntl(2) to set O_NONBLOCK.
 
@@ -351,9 +327,7 @@ class IoUring:
         Prepares a connect(2) call for an IPv4 address. See the relevant man page for more info.
 
         :param fd: The file descriptor of the socket to connect using.
-        :param address:
-
-            The IPv4 address to connect to.
+        :param address: The IPv4 address to connect to.
 
             This should either be a :class:`str` containing the four-octet IPv4 address
             (e.g. ``'172.16.39.25``) or a :class:`ipaddress.IPv4Address`.
@@ -433,20 +407,19 @@ class IoUring:
         purposes. The byte count may be less than the count requested.
 
         :param fd: The file descriptor to write the data to.
-        :param buffer:
+        :param buffer: The bytestring or bytearray to send.
 
-            The data buffer to read from. This will be copied into the Rust function's memory,
-            so for large buffers this will use more memory.
+            This is copied into the Rust-side code before submission; large buffer sizes will cause
+            excessive memory usage. 
 
-        :param count:
+        :param count: The number of bytes to write from the provided buffer.
 
-            The number of bytes to write from the provided buffer. This defaults to the size of
-            the buffer, and cannot be larger than the buffer.
+            This defaults to the size of the buffer, and cannot be larger than the buffer.
 
-        :param buffer_offset:
+        :param buffer_offset: The offset within the buffer to start writing from.
 
-            The offset within the buffer to start writing from. This defaults to the first byte
-            of the buffer, and cannot be beyond the end of the buffer.
+            This defaults to the first byte of the buffer, and cannot be beyond the end of the 
+            buffer.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
         :return: The user-data value that was stored in the SQE.
@@ -476,39 +449,37 @@ def make_io_ring(
     Creates a new :class:`.IoUring` instance. This is a *context manager*; when the ``with`` block
     exits, the ring will be closed and inaccessible.
 
-    :param entries:
+    .. code-block:: python3
 
-        The maximum number of submission queue entries in the ring before a call to
-        ``io_uring_enter`` must take place.
+        with make_io_ring() as ring:
+            openat = ring.prep_openat(None, b"/dev/zero")
+            ring.submit_and_wait()
+            results = ring.get_completion_entries()
+
+    :param entries: The maximum number of SQEs before a call to ``io_uring_enter`` must take place.
 
         If the submission queue is full, and something attempts to place a new entry in the
         submission queue, then an automatic call to ``io_uring_enter`` will take place.
 
-    :param cq_size:
+    :param cq_size: The maximum number of entries in the completion queue. 
 
-        The maximum number of entries in the completion queue. This only bounds the maximum
-        number that will be copied into userspace across a single call; any completion queue
-        entries that would not fit are buffered in kernelspace memory first.
+        This only bounds the maximum number that will be copied into userspace across a single 
+        call; any completion queue entries that would not fit are buffered in kernelspace memory 
+        first. This means that no entries aree lost.
 
-    :param sqpoll_idle_ms:
+    :param sqpoll_idle_ms: The time the kernel submission poll thread will wait for a new SQE.
 
-        The number of milliseconds the kernel submission queue polling thread should wait for a new
-        submission queue entry before returning to idle.
+        If this amount of timee passes without a submission queue entry being placed into the queue,
+        the submission poll thread will idle and will not wake again until 
 
         If this value is zero or lower, then submission queue polling will be disabled entirely.
 
-    :param single_issuer:
-
-        Hints to the kernel that it should optimise for single-threaded access to the ``io_uring``
-        ring. Given that this is Python, this should always be true.
+    :param single_issuer: Hints the kernel to optimise for single-thread access to the ``io_uring``.
 
         If you pass this as True and yet attempt to access the ``io_uring`` from multiple threads
         anyway, you may be smited.
 
-    :param autosubmit:
-
-        Controls if the submission queue should automatically be submitted when it is full and
-        another operation wishes to push a job on.
+    :param autosubmit: If True, the submission queue will automatically be submitted when full.
 
         If this is False, then trying to submit a new operation whilst the queue is full will
         fail with a :class:`.ValueError`.
