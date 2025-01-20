@@ -114,6 +114,7 @@ def test_writing_with_file_offset():
 
         assert data == buffer[0:32] + buffer
 
+
 def test_invalid_writes():
     with make_io_ring() as ring:
         # just reuse stdout here

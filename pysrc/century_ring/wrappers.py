@@ -133,7 +133,7 @@ class IoUring:
         :param relative_to: The fd of a directory to open this file relative to.
 
             If this is the special constant ``AT_FDCWD``, then this file will be opened relative
-            to the current working directory. If this is ``-1`` or ``None``, then this parameter 
+            to the current working directory. If this is ``-1`` or ``None``, then this parameter
             will be ignored and the path should be an absolute path.
 
         :param path: The bytes-encoded path to open.
@@ -142,15 +142,15 @@ class IoUring:
             the behaviour of the ``relative_to`` parameter. Otherwise, ``relative_to`` is ignored.
 
         :param open_mode: The mode to open a file in, e.g. read-only or write-only.
-        :param flags: The file open flags to use. 
+        :param flags: The file open flags to use.
 
-            This differs from the traditional ``fopen`` flags that Python uses and should 
+            This differs from the traditional ``fopen`` flags that Python uses and should
             be a set of constants from the :class:`.FileOpenMode` enumeration.
 
         :param permissions: The permissions that the file will be opened with.
 
-            This is masked off by the current umask; for example, if a user's umask is 
-            ``0o022`` and ``mode`` is the value ``0o666`` (the default value), then the final 
+            This is masked off by the current umask; for example, if a user's umask is
+            ``0o022`` and ``mode`` is the value ``0o666`` (the default value), then the final
             file will be created with ``0o644`` permissions.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
@@ -195,10 +195,10 @@ class IoUring:
 
         :param fd: The file descriptor to read the data from.
         :param byte_count: The *maximum* number of bytes to read. The actual amount may be lower.
-        :param offset: The offset within the file to read from. 
+        :param offset: The offset within the file to read from.
 
-            If this is a positive integer, this is an absolute offset within the file to read from. 
-            If this is the constant ``-1``, then this will read from the current file's seek 
+            If this is a positive integer, this is an absolute offset within the file to read from.
+            If this is the constant ``-1``, then this will read from the current file's seek
             position.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
@@ -234,12 +234,12 @@ class IoUring:
         :param buffer: The bytestring or bytearray to send.
 
             This is copied into the Rust-side code before submission; large buffer sizes will cause
-            excessive memory usage. 
+            excessive memory usage.
 
-        :param file_offset: The offset within the file to write at. 
-        
+        :param file_offset: The offset within the file to write at.
+
             If this is a positive integer, this is an absolute offset within the file to write at.
-            If this is the constant ``-1``, then this will write at the current file's seek 
+            If this is the constant ``-1``, then this will write at the current file's seek
             position.
 
         :param count: The number of bytes to write from the provided buffer.
@@ -248,7 +248,7 @@ class IoUring:
 
         :param buffer_offset: The offset within the buffer to start writing from.
 
-            This defaults to the first byte of the buffer, and cannot be beyond the end of the 
+            This defaults to the first byte of the buffer, and cannot be beyond the end of the
             buffer.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
@@ -410,7 +410,7 @@ class IoUring:
         :param buffer: The bytestring or bytearray to send.
 
             This is copied into the Rust-side code before submission; large buffer sizes will cause
-            excessive memory usage. 
+            excessive memory usage.
 
         :param count: The number of bytes to write from the provided buffer.
 
@@ -418,7 +418,7 @@ class IoUring:
 
         :param buffer_offset: The offset within the buffer to start writing from.
 
-            This defaults to the first byte of the buffer, and cannot be beyond the end of the 
+            This defaults to the first byte of the buffer, and cannot be beyond the end of the
             buffer.
 
         :param sqe_flags: See :func:`.make_uring_flags`.
@@ -461,16 +461,16 @@ def make_io_ring(
         If the submission queue is full, and something attempts to place a new entry in the
         submission queue, then an automatic call to ``io_uring_enter`` will take place.
 
-    :param cq_size: The maximum number of entries in the completion queue. 
+    :param cq_size: The maximum number of entries in the completion queue.
 
-        This only bounds the maximum number that will be copied into userspace across a single 
-        call; any completion queue entries that would not fit are buffered in kernelspace memory 
+        This only bounds the maximum number that will be copied into userspace across a single
+        call; any completion queue entries that would not fit are buffered in kernelspace memory
         first. This means that no entries aree lost.
 
     :param sqpoll_idle_ms: The time the kernel submission poll thread will wait for a new SQE.
 
         If this amount of timee passes without a submission queue entry being placed into the queue,
-        the submission poll thread will idle and will not wake again until 
+        the submission poll thread will idle and will not wake again until
 
         If this value is zero or lower, then submission queue polling will be disabled entirely.
 

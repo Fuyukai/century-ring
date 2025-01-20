@@ -126,5 +126,5 @@ def test_multiple_timeouts_ignoring_completions() -> None:
 def test_pending_sq_entries() -> None:
     with make_io_ring() as ring:
         ring.prep_openat(None, b"/dev/zero", FileOpenMode.READ_ONLY)
-        
+
         assert ring.pending_sq_entries == 1

@@ -69,7 +69,7 @@ def make_sqe_flags(
         first. This is useful for when the programmer knows that issuing a non-blocking operation
         will inevitably fail, and can improve performance.
 
-    :param skip_success: 
+    :param skip_success:
 
         No completion queue entry will be created if this operation is successful.
 

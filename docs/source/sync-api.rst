@@ -78,6 +78,7 @@ Once submitted, completion events can be reaped with :meth:`IoUring.get_completi
 .. automethod:: century_ring.IoUring.get_completion_entries
 
 .. autoclass:: century_ring.CompletionEvent
+    :members:
 
 .. autofunction:: century_ring.raise_for_cqe
 
