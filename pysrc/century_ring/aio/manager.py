@@ -7,7 +7,7 @@ from anyio.streams.memory import MemoryObjectSendStream
 
 from century_ring import raise_for_cqe
 from century_ring._century_ring import CompletionEvent
-from century_ring.wrappers import IoUring
+from century_ring.ring import IoUring
 
 
 @attr.define(slots=True, kw_only=True)

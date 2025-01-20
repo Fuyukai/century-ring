@@ -3,7 +3,7 @@ import select
 
 import pytest
 
-from century_ring.wrappers import make_io_ring
+from century_ring import make_io_ring
 from tests import AutoclosingScope
 
 

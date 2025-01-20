@@ -2,7 +2,7 @@ import pytest
 
 from century_ring import raise_for_cqe
 from century_ring.aio.sidecar import start_uring_sidecar
-from century_ring.files import FileOpenMode
+from century_ring.enums import FileOpenMode
 
 pytestmark = pytest.mark.anyio
 

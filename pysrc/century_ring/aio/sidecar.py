@@ -7,7 +7,7 @@ import anyio
 import sniffio
 
 from century_ring.aio.manager import UringIoManager
-from century_ring.wrappers import make_io_ring
+from century_ring.ring import make_io_ring
 
 try:
     from trio.lowlevel import add_instrument, remove_instrument

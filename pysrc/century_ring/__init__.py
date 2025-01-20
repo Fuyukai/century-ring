@@ -1,8 +1,8 @@
 import os
 
 from century_ring._century_ring import CompletionEvent as CompletionEvent, _RUSTFFI_make_uring_flags
-from century_ring.files import FileOpenFlag as FileOpenFlag, FileOpenMode as FileOpenMode
-from century_ring.wrappers import (
+from century_ring.enums import FileOpenFlag as FileOpenFlag, FileOpenMode as FileOpenMode
+from century_ring.ring import (
     AT_FDCWD as AT_FDCWD,
     IoUring as IoUring,
     make_io_ring as make_io_ring,

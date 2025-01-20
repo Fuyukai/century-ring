@@ -1,7 +1,6 @@
 import pytest
 
-from century_ring import make_sqe_flags
-from century_ring.wrappers import make_io_ring
+from century_ring import make_io_ring, make_sqe_flags
 
 PATTERN = "Can't use 'SKIP_SUCCESS' on submissions with owned data"
 

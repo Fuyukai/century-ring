@@ -1,3 +1,12 @@
+# Hark Triton, hark!
+# These functions are the raw, Rust-level functions that the rest of the library uses. These are
+# *not* designed to be used by end-user code!
+#
+# Only the ``CompletionEvent`` class is exposed as it has a trivial definition. The rest of the
+# functionality of this file is *private*, may change under any circumstances, and may be confusing
+# to use. The only guarantee is that you can't *explicitly* break anything by using these
+# operations directly.
+
 class CompletionEvent:
     """
     A single completion event returned from the io_uring.
@@ -5,8 +14,10 @@ class CompletionEvent:
 
     #: The system call result for this event.
     result: int
+
     #: The internal user_data field. Not relevant.
     user_data: int
+
     #: If this operation had a buffer, either the provided buffer from the application or the
     #: allocated buffer (writes and reads, respectively).
     buffer: bytes | None

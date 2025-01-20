@@ -5,8 +5,7 @@ import stat
 import attr
 import pytest
 
-from century_ring import raise_for_cqe
-from century_ring.wrappers import make_io_ring
+from century_ring import make_io_ring, raise_for_cqe
 from tests import AutoclosingScope
 
 

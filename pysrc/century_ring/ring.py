@@ -21,7 +21,7 @@ from century_ring._century_ring import (
     _RUSTFFI_ioring_prep_send,
     _RUSTFFI_ioring_prep_write,
 )
-from century_ring.files import FileOpenFlag, FileOpenMode, enum_flags_to_int_flags
+from century_ring.enums import FileOpenFlag, FileOpenMode, enum_flags_to_int_flags
 
 # Q: why wrap all of these in (relatively) identical objects?
 # A: ffi API is kinda ugly! also, no default arguments

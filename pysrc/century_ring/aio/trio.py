@@ -3,7 +3,7 @@ from typing import Any, override
 import attr
 from trio.abc import Instrument
 
-from century_ring.wrappers import IoUring
+from century_ring.ring import IoUring
 
 
 @attr.define(frozen=True, slots=True, hash=False)
