@@ -22,12 +22,26 @@ from century_ring._century_ring import (
     _RUSTFFI_ioring_prep_write,
 )
 from century_ring.enums import FileOpenFlag, FileOpenMode, enum_flags_to_int_flags
+from century_ring.handle import IntoFilelikeHandle
 
 # Q: why wrap all of these in (relatively) identical objects?
 # A: ffi API is kinda ugly! also, no default arguments
 
 # for some reason, this isn't defined in ``os``
 AT_FDCWD = -100
+
+type AcceptableFile = IntoFilelikeHandle | int
+
+
+def unwrap_file(fd: AcceptableFile) -> int:
+    if isinstance(fd, int):
+        return fd
+
+    handle = fd.as_handle()
+    if handle.close_called():
+        raise ValueError(f"Handle {handle!r} is closed")
+
+    return fd.as_handle().fd
 
 
 @attr.define
@@ -117,7 +131,7 @@ class IoUring:
     # actual methods
     def prep_openat(
         self,
-        relative_to: int | None,
+        relative_to: AcceptableFile | None,
         path: bytes | PathLike[bytes],
         open_mode: FileOpenMode,
         flags: Iterable[FileOpenFlag] | None = None,
@@ -157,7 +171,15 @@ class IoUring:
         :return: The user-data value that was stored in the SQE.
         """
 
-        dirfd = relative_to if relative_to is not None else -1
+        if relative_to is None:
+            dirfd = -1
+
+        elif isinstance(relative_to, int):
+            dirfd = relative_to
+
+        else:
+            dirfd = relative_to.as_handle().fd
+
         raw_flags = enum_flags_to_int_flags(flags) if flags else os.O_CLOEXEC
         user_data = self._the_ring.get_next_user_data()
 
@@ -169,11 +191,11 @@ class IoUring:
         )
         return user_data
 
-    def prep_close(self, fd: int, *, sqe_flags: int | None = None) -> int:
+    def prep_close(self, fd: AcceptableFile, *, sqe_flags: int | None = None) -> int:
         """
         Prepares a close(2) call. See the relevant man page for more details.
 
-        :param fd: The file descriptor to close.
+        :param fd: The file handle to close.
         :return: The user-data value that was stored in the SQE.
         :param sqe_flags: See :func:`.make_uring_flags`.
         """
@@ -181,11 +203,15 @@ class IoUring:
         sqe_flags = sqe_flags if sqe_flags is not None else 0
 
         user_data = self._the_ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_close(self._the_ring, fd, user_data, sqe_flags)
+        _RUSTFFI_ioring_prep_close(self._the_ring, unwrap_file(fd), user_data, sqe_flags)
+
+        if not isinstance(fd, int):
+            fd.as_handle().mark_closed()
+
         return user_data
 
     def prep_read(
-        self, fd: int, byte_count: int, offset: int = -1, *, sqe_flags: int | None = None
+        self, fd: AcceptableFile, byte_count: int, offset: int = -1, *, sqe_flags: int | None = None
     ) -> int:
         """
         Prepares a pread(2) call. See the relevant man page for more details.
@@ -210,12 +236,14 @@ class IoUring:
 
         sqe_flags = sqe_flags if sqe_flags is not None else 0
         user_data = self._the_ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_read(self._the_ring, fd, byte_count, offset, user_data, sqe_flags)
+        _RUSTFFI_ioring_prep_read(
+            self._the_ring, unwrap_file(fd), byte_count, offset, user_data, sqe_flags
+        )
         return user_data
 
     def prep_write(
         self,
-        fd: int,
+        fd: AcceptableFile,
         buffer: bytes | bytearray,
         file_offset: int = -1,
         count: int | None = None,
@@ -264,7 +292,14 @@ class IoUring:
         user_data = self._the_ring.get_next_user_data()
         sqe_flags = sqe_flags if sqe_flags is not None else 0
         _RUSTFFI_ioring_prep_write(
-            self._the_ring, fd, buffer, size, buffer_offset, file_offset, user_data, sqe_flags
+            self._the_ring,
+            unwrap_file(fd),
+            buffer,
+            size,
+            buffer_offset,
+            file_offset,
+            user_data,
+            sqe_flags,
         )
         return user_data
 
@@ -317,7 +352,7 @@ class IoUring:
 
     def prep_connect_v4(
         self,
-        fd: int,
+        fd: AcceptableFile,
         address: str | ipaddress.IPv4Address,
         port: int,
         *,
@@ -341,13 +376,13 @@ class IoUring:
 
         user_data = self._the_ring.get_next_user_data()
         _RUSTFFI_ioring_prep_connect_v4(
-            self._the_ring, fd, str(address), port, user_data, sqe_flags
+            self._the_ring, unwrap_file(fd), str(address), port, user_data, sqe_flags
         )
         return user_data
 
     def prep_connect_v6(
         self,
-        fd: int,
+        fd: AcceptableFile,
         address: str | ipaddress.IPv6Address,
         port: int,
         *,
@@ -367,12 +402,12 @@ class IoUring:
 
         user_data = self._the_ring.get_next_user_data()
         _RUSTFFI_ioring_prep_connect_v6(
-            self._the_ring, fd, str(address), port, user_data, sqe_flags
+            self._the_ring, unwrap_file(fd), str(address), port, user_data, sqe_flags
         )
         return user_data
 
     def prep_recv(
-        self, fd: int, byte_count: int, flags: int = 0, *, sqe_flags: int | None = None
+        self, fd: AcceptableFile, byte_count: int, flags: int = 0, *, sqe_flags: int | None = None
     ) -> int:
         """
         Prepares a recv(2) call. See the relevant man page for more info.
@@ -386,12 +421,14 @@ class IoUring:
 
         sqe_flags = sqe_flags if sqe_flags is not None else 0
         user_data = self._the_ring.get_next_user_data()
-        _RUSTFFI_ioring_prep_recv(self._the_ring, fd, byte_count, flags, user_data, sqe_flags)
+        _RUSTFFI_ioring_prep_recv(
+            self._the_ring, unwrap_file(fd), byte_count, flags, user_data, sqe_flags
+        )
         return user_data
 
     def prep_send(
         self,
-        fd: int,
+        fd: AcceptableFile,
         buffer: bytes | bytearray,
         count: int | None = None,
         buffer_offset: int | None = None,
@@ -432,7 +469,14 @@ class IoUring:
 
         user_data = self._the_ring.get_next_user_data()
         _RUSTFFI_ioring_prep_send(
-            self._the_ring, fd, buffer, size, buffer_offset, flags, user_data, sqe_flags
+            self._the_ring,
+            unwrap_file(fd),
+            buffer,
+            size,
+            buffer_offset,
+            flags,
+            user_data,
+            sqe_flags,
         )
         return user_data
 

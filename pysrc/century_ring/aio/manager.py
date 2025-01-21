@@ -5,8 +5,8 @@ import anyio.lowlevel
 import attr
 from anyio.streams.memory import MemoryObjectSendStream
 
-from century_ring import raise_for_cqe
 from century_ring._century_ring import CompletionEvent
+from century_ring.helpers import raise_for_cqe
 from century_ring.ring import IoUring
 
 

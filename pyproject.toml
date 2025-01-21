@@ -37,6 +37,13 @@ dev = [
     "sphinx-rtd-theme>=3.0.2",
 ]
 
+[tool.coverage.report]
+# le protocols...
+exclude_also = [
+    "\\.\\.\\.",
+    "if TYPE_CHECKING:"
+]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "pysrc"

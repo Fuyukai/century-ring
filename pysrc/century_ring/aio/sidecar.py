@@ -11,7 +11,7 @@ from century_ring.ring import make_io_ring
 
 try:
     from trio.lowlevel import add_instrument, remove_instrument
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no cover
 
     def add_instrument(instrument: Any) -> None:
         pass
